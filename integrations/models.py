@@ -7,6 +7,8 @@ class Integration(models.Model):
     PLATFORM_CHOICES = [
         ("telegram", "Telegram"),
         ("whatsapp", "WhatsApp"),
+        ("instagram", "Instagram"),
+        ("facebook", "Facebook"),
     ]
     STATUS_CHOICES = [
         ("active", "Active"),
@@ -38,6 +40,24 @@ class Integration(models.Model):
         indexes = [
             models.Index(fields=["user", "platform"]),
             models.Index(fields=["status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["external_account_id"],
+                condition=(
+                    models.Q(platform="instagram", status="active")
+                    & ~models.Q(external_account_id="")
+                ),
+                name="uniq_active_instagram_account",
+            ),
+            models.UniqueConstraint(
+                fields=["external_account_id"],
+                condition=(
+                    models.Q(platform="facebook", status="active")
+                    & ~models.Q(external_account_id="")
+                ),
+                name="uniq_active_facebook_account",
+            ),
         ]
 
     def __str__(self):

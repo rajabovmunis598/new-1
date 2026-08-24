@@ -4,6 +4,7 @@ services:
     env_file: .env
     depends_on: [db, redis]
     expose: ["8000"]
+    volumes: [static_data:/app/staticfiles]
   db:
     image: postgres:17-alpine
     environment:
@@ -25,11 +26,21 @@ services:
     env_file: .env
     command: celery -A core beat -l info
     depends_on: [db, redis]
+  telegram-listener:
+    build: .
+    env_file: .env
+    command: python manage.py run_telegram_listener
+    depends_on: [db, redis]
+    restart: unless-stopped
+    stop_grace_period: 30s
   nginx:
     image: nginx:1.27-alpine
     ports: ["80:80"]
-    volumes: [./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro]
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/app/staticfiles:ro
     depends_on: [web]
 volumes:
   postgres_data:
   redis_data:
+  static_data:

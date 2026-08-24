@@ -2,25 +2,21 @@ import base64
 import hashlib
 import hmac
 import json
+
+from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 from django.core.signing import BadSignature, Signer
 
 
-def _key():
-    return hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+def _key(secret=None):
+    value = secret or settings.INTEGRATION_ENCRYPTION_KEY
+    return hashlib.sha256(value.encode()).digest()
 
 
 def encrypt_json(value):
     raw = json.dumps(value, separators=(",", ":")).encode()
-    try:
-        from cryptography.fernet import Fernet
-        key = base64.urlsafe_b64encode(_key())
-        return "fernet:" + Fernet(key).encrypt(raw).decode()
-    except ImportError:
-        pass
-    key = _key()
-    encrypted = bytes(byte ^ key[i % len(key)] for i, byte in enumerate(raw))
-    return Signer().sign(base64.urlsafe_b64encode(encrypted).decode())
+    key = base64.urlsafe_b64encode(_key())
+    return "fernet:" + Fernet(key).encrypt(raw).decode()
 
 
 def decrypt_json(value):
@@ -28,13 +24,25 @@ def decrypt_json(value):
         return {}
     try:
         if value.startswith("fernet:"):
-            from cryptography.fernet import Fernet, InvalidToken
-            return json.loads(Fernet(base64.urlsafe_b64encode(_key())).decrypt(value[7:].encode()))
+            encrypted_value = value[7:].encode()
+            secrets = dict.fromkeys(
+                (settings.INTEGRATION_ENCRYPTION_KEY, settings.SECRET_KEY)
+            )
+            for secret in secrets:
+                try:
+                    key = base64.urlsafe_b64encode(_key(secret))
+                    return json.loads(Fernet(key).decrypt(encrypted_value))
+                except InvalidToken:
+                    continue
+            return {}
+
+        # Backward compatibility for values written before Fernet became
+        # mandatory. All newly written credentials use Fernet above.
         encrypted = base64.urlsafe_b64decode(Signer().unsign(value))
-        key = _key()
+        key = _key(settings.SECRET_KEY)
         raw = bytes(byte ^ key[i % len(key)] for i, byte in enumerate(encrypted))
         return json.loads(raw)
-    except Exception:
+    except (BadSignature, InvalidToken, ValueError, TypeError, json.JSONDecodeError):
         return {}
 
 

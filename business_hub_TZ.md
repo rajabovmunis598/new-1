@@ -180,10 +180,7 @@ Django Integration Service
 
 ## 7.2 Credentials
 
-```env
-TELEGRAM_API_ID=...
-TELEGRAM_API_HASH=...
-```
+Ҳар user `Telegram API ID` ва `API Hash`-и худро дар формаи пайвастшавӣ ворид мекунад. Онҳо encrypted дар `Integration.credentials` нигоҳ дошта мешаванд.
 
 `api_hash` ба frontend ё API response баргардонида нашавад.
 
@@ -201,7 +198,7 @@ GET  /api/integrations/telegram/status/
 
 Flow:
 
-1. Phone number қабул мешавад.
+1. API ID, API Hash ва phone number қабул мешаванд.
 2. Telegram client сохта мешавад.
 3. Verification code request мешавад.
 4. Code verify мешавад.
@@ -263,22 +260,15 @@ WhatsApp Business Platform / Cloud API истифода шавад.
 
 Development/test mode бояд дастгирӣ шавад.
 
-## 8.2 Environment
+## 8.2 Credentials
 
-```env
-WHATSAPP_ACCESS_TOKEN=...
-WHATSAPP_VERIFY_TOKEN=...
-WHATSAPP_APP_SECRET=...
-WHATSAPP_PHONE_NUMBER_ID=...
-WHATSAPP_BUSINESS_ACCOUNT_ID=...
-WHATSAPP_API_VERSION=...
-```
+Ҳар user маълумоти WhatsApp Cloud API-и худро дар форма ворид мекунад. Access Token, Verify Token ва App Secret encrypted нигоҳ дошта мешаванд. Дар environment танҳо `WHATSAPP_API_VERSION` глобалӣ аст.
 
 ## 8.3 Webhook
 
 ```text
-GET  /api/webhooks/whatsapp/
-POST /api/webhooks/whatsapp/
+GET  /api/webhooks/whatsapp/{integration_id}/
+POST /api/webhooks/whatsapp/{integration_id}/
 ```
 
 Flow:
@@ -860,6 +850,7 @@ SECRET_KEY=...
 DATABASE_URL=postgresql://...
 
 REDIS_URL=redis://redis:6379/0
+CACHE_URL=redis://redis:6379/3
 
 CELERY_BROKER_URL=redis://redis:6379/1
 CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -867,15 +858,8 @@ CELERY_RESULT_BACKEND=redis://redis:6379/2
 JWT_ACCESS_LIFETIME=...
 JWT_REFRESH_LIFETIME=...
 
-TELEGRAM_API_ID=...
-TELEGRAM_API_HASH=...
-
-WHATSAPP_ACCESS_TOKEN=...
-WHATSAPP_VERIFY_TOKEN=...
-WHATSAPP_APP_SECRET=...
-WHATSAPP_PHONE_NUMBER_ID=...
-WHATSAPP_BUSINESS_ACCOUNT_ID=...
 WHATSAPP_API_VERSION=...
+INTEGRATION_ENCRYPTION_KEY=...
 ```
 
 ---

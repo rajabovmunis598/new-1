@@ -13,6 +13,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,6 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-only-change-me-at-least-32-characters-long')
+INTEGRATION_ENCRYPTION_KEY = os.getenv('INTEGRATION_ENCRYPTION_KEY') or SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
@@ -32,6 +39,7 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').spl
 # Application definition
 
 INSTALLED_APPS = [
+    'core.apps.CoreConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -52,6 +60,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'audit',
+    'frontend',
 ]
 
 try:
@@ -72,6 +81,42 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'core.urls'
+
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rajabovmunis598@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'vsms rkbv lgmh skis')
+EMAIL_HOST_PASSWORD = EMAIL_HOST_PASSWORD.replace(' ', '')
+
+
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '15'))
+DEFAULT_FROM_EMAIL = os.getenv(
+    'DEFAULT_FROM_EMAIL',
+    EMAIL_HOST_USER or 'noreply@munis.local',
+)
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
+# One Meta application serves all Instagram integrations. User access tokens are
+# obtained through OAuth and encrypted in the Integration row, never in env.
+INSTAGRAM_APP_ID = os.getenv('INSTAGRAM_APP_ID', '')
+INSTAGRAM_APP_SECRET = os.getenv('INSTAGRAM_APP_SECRET', '')
+INSTAGRAM_VERIFY_TOKEN = os.getenv('INSTAGRAM_VERIFY_TOKEN', '')
+INSTAGRAM_API_VERSION = os.getenv('INSTAGRAM_API_VERSION', 'v24.0')
+INSTAGRAM_REDIRECT_URI = os.getenv('INSTAGRAM_REDIRECT_URI', '').strip()
+INSTAGRAM_OAUTH_STATE_TTL = int(os.getenv('INSTAGRAM_OAUTH_STATE_TTL', '600'))
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
 
 TEMPLATES = [
     {
@@ -168,6 +213,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'core.pagination.StandardPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'telegram_start': '5/hour',
+        'telegram_verify': '20/hour',
+        'telegram_2fa': '10/hour',
+        'instagram_oauth_start': '20/hour',
+    },
 }
 
 from datetime import timedelta
@@ -180,10 +231,26 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Unified Business Messages Hub',
-    'DESCRIPTION': 'Backend API for business messaging hub',
+    'TITLE': 'Munis Business Hub API',
+    'DESCRIPTION': (
+        'REST API for the Munis Business Hub. Use the JWT access token from '
+        '/api/auth/login/ with the Bearer authentication scheme.'
+    ),
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    # Documentation is public by design and contains contracts, not user data.
+    # Protected API operations still require a JWT access token.
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.AllowAny'],
+    'SERVE_AUTHENTICATION': [],
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'displayRequestDuration': True,
+        'filter': True,
+        'persistAuthorization': False,
+    },
+    'REDOC_UI_SETTINGS': {
+        'hideDownloadButton': False,
+    },
 }
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG
@@ -198,9 +265,30 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CACHE_URL = os.getenv('CACHE_URL', 'redis://localhost:6379/3')
+USE_IN_MEMORY_CACHE = os.getenv(
+    'USE_IN_MEMORY_CACHE', str(DEBUG)
+).lower() == 'true'
+if USE_IN_MEMORY_CACHE:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'munis-local-cache',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': CACHE_URL,
+            'TIMEOUT': 600,
+        }
+    }
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/1')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/2')
-CELERY_TASK_ALWAYS_EAGER = os.getenv('CELERY_TASK_ALWAYS_EAGER', 'False').lower() == 'true'
+CELERY_TASK_ALWAYS_EAGER = os.getenv(
+    'CELERY_TASK_ALWAYS_EAGER', str(DEBUG)
+).lower() == 'true'
 CELERY_BEAT_SCHEDULE = {
     'check-integrations': {'task':'integrations.tasks.check_integrations', 'schedule':300},
     'retry-failed-events': {'task':'integrations.tasks.retry_failed_event', 'schedule':3600},
@@ -208,8 +296,17 @@ CELERY_BEAT_SCHEDULE = {
     'generate-statistics': {'task':'integrations.tasks.generate_statistics', 'schedule':86400},
 }
 if 'channels' in INSTALLED_APPS:
-    try:
-        import channels_redis
-        CHANNEL_LAYERS={'default': {'BACKEND':'channels_redis.core.RedisChannelLayer', 'CONFIG':{'hosts':[REDIS_URL]}}}
-    except ImportError:
-        CHANNEL_LAYERS={'default': {'BACKEND':'channels.layers.InMemoryChannelLayer'}}
+    use_in_memory_channels = os.getenv(
+        'USE_IN_MEMORY_CHANNEL_LAYER', str(DEBUG)
+    ).lower() == 'true'
+    if use_in_memory_channels:
+        CHANNEL_LAYERS = {
+            'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}
+        }
+    else:
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels_redis.core.RedisChannelLayer',
+                'CONFIG': {'hosts': [REDIS_URL]},
+            }
+        }

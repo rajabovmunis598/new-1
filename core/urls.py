@@ -15,11 +15,23 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from integrations.views import IntegrationViewSet, WhatsAppWebhookView
+from django.conf import settings
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+from django.urls import include, path, re_path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+from integrations.views import (
+    FacebookWebhookView,
+    InstagramWebhookView,
+    IntegrationViewSet,
+    WhatsAppWebhookView,
+)
 from messages.views import SendMessageView
-from core.views import DashboardStatisticsView
+from core.views import DashboardStatisticsView, GlobalSearchView, AISuggestionsView
+from frontend.views import FrontendView
 
 integration_list = IntegrationViewSet.as_view({'get':'list'})
 integration_detail = IntegrationViewSet.as_view({'get':'retrieve', 'patch':'partial_update', 'delete':'destroy'})
@@ -37,8 +49,37 @@ urlpatterns = [
     path('api/orders/', include('orders.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/dashboard/statistics/', DashboardStatisticsView.as_view()),
-    path('api/webhooks/whatsapp/', WhatsAppWebhookView.as_view()),
-    path('api/schema/', SpectacularAPIView.as_view()),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema')),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema')),
+    path('api/search/', GlobalSearchView.as_view(), name='global-search'),
+    path('api/ai/suggestions/', AISuggestionsView.as_view(), name='ai-suggestions'),
+    path(
+        'api/webhooks/whatsapp/<int:integration_id>/',
+        WhatsAppWebhookView.as_view(),
+        name='whatsapp-webhook',
+    ),
+    path(
+        'api/webhooks/instagram/',
+        InstagramWebhookView.as_view(),
+        name='instagram-webhook',
+    ),
+    path(
+        'api/webhooks/facebook/',
+        FacebookWebhookView.as_view(),
+        name='facebook-webhook',
+    ),
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path(
+        'api/docs/',
+        SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui',
+    ),
+    path(
+        'api/redoc/',
+        SpectacularRedocView.as_view(url_name='schema'),
+        name='redoc',
+    ),
+    path('', FrontendView.as_view(), name='frontend'),
+    re_path(r'^(?!api/|admin/|static/).+$', FrontendView.as_view(), name='frontend-route'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += staticfiles_urlpatterns()

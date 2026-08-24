@@ -1,30 +1,61 @@
 openapi: 3.0.3
 info:
-  title: Unified Business Messages Hub
+  title: Munis Business Hub API
   version: 1.0.0
-  description: Backend API for business messaging hub
+  description: REST API for the Munis Business Hub. Use the JWT access token from
+    /api/auth/login/ with the Bearer authentication scheme.
 paths:
   /api/auth/login/:
     post:
       operationId: auth_login_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Login'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Login'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          description: ''
   /api/auth/logout/:
     post:
       operationId: auth_logout_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+        required: true
       security:
       - jwtAuth: []
       responses:
-        '200':
+        '204':
           description: No response body
+        '400':
+          description: Invalid refresh token.
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve
@@ -113,7 +144,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Register'
+                $ref: '#/components/schemas/RegisterResponse'
           description: ''
   /api/auth/token/refresh/:
     post:
@@ -146,6 +177,10 @@ paths:
     get:
       operationId: contacts_list
       parameters:
+      - in: query
+        name: integration
+        schema:
+          type: integer
       - name: ordering
         required: false
         in: query
@@ -188,7 +223,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this contact.
         required: true
       tags:
       - contacts
@@ -201,10 +237,128 @@ paths:
               schema:
                 $ref: '#/components/schemas/Contact'
           description: ''
+  /api/contacts/export/:
+    get:
+      operationId: contacts_export_csv
+      summary: Export the authenticated user's filtered contacts as CSV
+      tags:
+      - contacts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          description: ''
   /api/conversations/:
     get:
       operationId: conversations_list
       parameters:
+      - in: query
+        name: contact
+        schema:
+          type: integer
+      - in: query
+        name: date_from
+        schema:
+          type: string
+        description: Filter conversations created at or after this ISO datetime.
+      - in: query
+        name: date_to
+        schema:
+          type: string
+        description: Filter conversations created at or before this ISO datetime.
+      - in: query
+        name: integration
+        schema:
+          type: integer
+      - in: query
+        name: is_pinned
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: platform
+        schema:
+          type: string
+        description: Filter by integration platform.
+      - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - high
+          - low
+          - normal
+          - urgent
+        description: |-
+          * `low` - Low
+          * `normal` - Normal
+          * `high` - High
+          * `urgent` - Urgent
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: snoozed
+        schema:
+          type: boolean
+        description: True for actively snoozed; false for due or unsnoozed.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - archived
+          - closed
+          - open
+        description: |-
+          * `open` - Open
+          * `closed` - Closed
+          * `archived` - Archived
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedConversationList'
+          description: ''
+  /api/conversations/{conversation_pk}/notes/:
+    get:
+      operationId: conversations_notes_list
+      parameters:
+      - in: path
+        name: conversation_pk
+        schema:
+          type: integer
+        required: true
       - name: ordering
         required: false
         in: query
@@ -238,8 +392,60 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedConversationList'
+                $ref: '#/components/schemas/PaginatedConversationNoteList'
           description: ''
+    post:
+      operationId: conversations_notes_create
+      parameters:
+      - in: path
+        name: conversation_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationNote'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConversationNote'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConversationNote'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationNote'
+          description: ''
+  /api/conversations/{conversation_pk}/notes/{note_id}/:
+    delete:
+      operationId: conversations_notes_destroy
+      parameters:
+      - in: path
+        name: conversation_pk
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: note_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/conversations/{id}/:
     get:
       operationId: conversations_retrieve
@@ -301,17 +507,6 @@ paths:
         required: true
       tags:
       - conversations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Conversation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Conversation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Conversation'
       security:
       - jwtAuth: []
       responses:
@@ -332,17 +527,6 @@ paths:
         required: true
       tags:
       - conversations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Conversation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Conversation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Conversation'
       security:
       - jwtAuth: []
       responses:
@@ -363,11 +547,139 @@ paths:
         required: true
       tags:
       - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutgoingMessage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OutgoingMessage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OutgoingMessage'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutgoingMessage'
+          description: ''
+  /api/conversations/{id}/pin/:
+    post:
+      operationId: conversations_pin_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: ''
+  /api/conversations/{id}/read/:
+    post:
+      operationId: conversations_read_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReadResponse'
+          description: ''
+  /api/conversations/{id}/snooze/:
+    post:
+      operationId: conversations_snooze_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationSnooze'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConversationSnooze'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConversationSnooze'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: ''
+  /api/conversations/{id}/unpin/:
+    post:
+      operationId: conversations_unpin_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: ''
+  /api/conversations/{id}/unsnooze/:
+    post:
+      operationId: conversations_unsnooze_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - conversations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+          description: ''
   /api/dashboard/statistics/:
     get:
       operationId: dashboard_statistics_retrieve
@@ -377,7 +689,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStatistics'
+          description: ''
   /api/integrations/:
     get:
       operationId: integrations_list
@@ -400,12 +716,38 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - in: query
+        name: platform
+        schema:
+          type: string
+          enum:
+          - instagram
+          - telegram
+          - whatsapp
+        description: |-
+          * `telegram` - Telegram
+          * `whatsapp` - WhatsApp
+          * `instagram` - Instagram
       - name: search
         required: false
         in: query
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - active
+          - error
+          - inactive
+          - pending
+        description: |-
+          * `active` - Active
+          * `inactive` - Inactive
+          * `error` - Error
+          * `pending` - Pending
       tags:
       - integrations
       security:
@@ -482,26 +824,129 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/integrations/instagram/connect/callback/:
+    get:
+      operationId: integrations_instagram_connect_callback_retrieve
+      parameters:
+      - in: query
+        name: code
+        schema:
+          type: string
+      - in: query
+        name: error
+        schema:
+          type: string
+      - in: query
+        name: state
+        schema:
+          type: string
+        required: true
+      tags:
+      - integrations
+      security:
+      - {}
+      responses:
+        '302':
+          description: No response body
+  /api/integrations/instagram/connect/start/:
+    post:
+      operationId: integrations_instagram_connect_start_create
+      tags:
+      - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstagramOAuthStart'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InstagramOAuthStart'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InstagramOAuthStart'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstagramOAuthStartResponse'
+          description: ''
+  /api/integrations/instagram/disconnect/:
+    post:
+      operationId: integrations_instagram_disconnect_create
+      tags:
+      - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/integrations/telegram/connect/2fa/:
     post:
       operationId: integrations_telegram_connect_2fa_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Telegram2FA'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Telegram2FA'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Telegram2FA'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Integration'
+          description: ''
   /api/integrations/telegram/connect/start/:
     post:
       operationId: integrations_telegram_connect_start_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramStart'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelegramStart'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelegramStart'
+        required: true
       security:
       - jwtAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelegramStartResponse'
+          description: ''
   /api/integrations/telegram/connect/verify/:
     post:
       operationId: integrations_telegram_connect_verify_create
@@ -526,17 +971,29 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TelegramVerify'
+                $ref: '#/components/schemas/TelegramVerifyResponse'
           description: ''
   /api/integrations/telegram/disconnect/:
     post:
       operationId: integrations_telegram_disconnect_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+        required: true
       security:
       - jwtAuth: []
       responses:
-        '200':
+        '204':
           description: No response body
   /api/integrations/telegram/status/:
     get:
@@ -547,41 +1004,119 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Integration'
+          description: ''
   /api/integrations/whatsapp/connect/:
     post:
       operationId: integrations_whatsapp_connect_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhatsAppConnect'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WhatsAppConnect'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WhatsAppConnect'
+        required: true
       security:
       - jwtAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Integration'
+          description: ''
   /api/integrations/whatsapp/disconnect/:
     post:
       operationId: integrations_whatsapp_disconnect_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+        required: true
       security:
       - jwtAuth: []
       responses:
-        '200':
+        '204':
           description: No response body
   /api/integrations/whatsapp/test/:
     post:
       operationId: integrations_whatsapp_test_create
       tags:
       - integrations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntegrationID'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsAppTestResponse'
+          description: ''
   /api/messages/:
     get:
       operationId: messages_list
       parameters:
+      - in: query
+        name: conversation
+        schema:
+          type: integer
+      - in: query
+        name: is_read
+        schema:
+          type: boolean
+      - in: query
+        name: message_type
+        schema:
+          type: string
+          enum:
+          - audio
+          - document
+          - image
+          - location
+          - other
+          - sticker
+          - text
+          - video
+        description: |-
+          * `text` - Text
+          * `image` - Image
+          * `video` - Video
+          * `audio` - Audio
+          * `document` - Document
+          * `location` - Location
+          * `sticker` - Sticker
+          * `other` - Other
       - name: ordering
         required: false
         in: query
@@ -606,6 +1141,18 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: sender_type
+        schema:
+          type: string
+          enum:
+          - business
+          - customer
+          - system
+        description: |-
+          * `customer` - Customer
+          * `business` - Business
+          * `system` - System
       tags:
       - messages
       security:
@@ -652,11 +1199,19 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalURLResponse'
+          description: ''
   /api/notifications/:
     get:
       operationId: notifications_list
       parameters:
+      - in: query
+        name: is_read
+        schema:
+          type: boolean
       - name: ordering
         required: false
         in: query
@@ -681,6 +1236,22 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+          enum:
+          - integration_error
+          - message_failed
+          - new_message
+          - new_order
+          - system
+        description: |-
+          * `new_message` - New Message
+          * `message_failed` - Message Failed
+          * `new_order` - New Order
+          * `integration_error` - Integration Error
+          * `system` - System
       tags:
       - notifications
       security:
@@ -699,7 +1270,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this notification.
         required: true
       tags:
       - notifications
@@ -719,7 +1291,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this notification.
         required: true
       tags:
       - notifications
@@ -772,6 +1345,18 @@ paths:
     get:
       operationId: orders_list
       parameters:
+      - in: query
+        name: contact
+        schema:
+          type: integer
+      - in: query
+        name: conversation
+        schema:
+          type: integer
+      - in: query
+        name: currency
+        schema:
+          type: string
       - name: ordering
         required: false
         in: query
@@ -796,6 +1381,20 @@ paths:
         description: A search term.
         schema:
           type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - new
+          - processing
+        description: |-
+          * `new` - New
+          * `processing` - Processing
+          * `completed` - Completed
+          * `cancelled` - Cancelled
       tags:
       - orders
       security:
@@ -839,7 +1438,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this order.
         required: true
       tags:
       - orders
@@ -858,7 +1458,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this order.
         required: true
       tags:
       - orders
@@ -889,7 +1490,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this order.
         required: true
       tags:
       - orders
@@ -919,7 +1521,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this order.
         required: true
       tags:
       - orders
@@ -928,25 +1531,193 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/webhooks/whatsapp/:
+  /api/orders/export/:
+    get:
+      operationId: orders_export_csv
+      summary: Export the authenticated user's filtered orders as CSV
+      tags:
+      - orders
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/search/:
+    get:
+      operationId: search_retrieve
+      description: Fast owner-scoped search for the command palette and power users.
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search text (up to 100 characters).
+        required: true
+      tags:
+      - search
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalSearchResponse'
+          description: ''
+  /api/webhooks/instagram/:
+    get:
+      operationId: webhooks_instagram_retrieve
+      parameters:
+      - in: query
+        name: hub.challenge
+        schema:
+          type: string
+      - in: query
+        name: hub.mode
+        schema:
+          type: string
+      - in: query
+        name: hub.verify_token
+        schema:
+          type: string
+      tags:
+      - webhooks
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: webhooks_instagram_create
+      tags:
+      - webhooks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/webhooks/whatsapp/{integration_id}/:
     get:
       operationId: webhooks_whatsapp_retrieve
+      parameters:
+      - in: query
+        name: hub.challenge
+        schema:
+          type: string
+      - in: query
+        name: hub.mode
+        schema:
+          type: string
+      - in: query
+        name: hub.verify_token
+        schema:
+          type: string
+      - in: path
+        name: integration_id
+        schema:
+          type: integer
+        required: true
       tags:
       - webhooks
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: string
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
     post:
       operationId: webhooks_whatsapp_create
+      parameters:
+      - in: path
+        name: integration_id
+        schema:
+          type: integer
+        required: true
       tags:
       - webhooks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
 components:
   schemas:
     Contact:
@@ -1002,15 +1773,18 @@ components:
         id:
           type: integer
           readOnly: true
+        integration:
+          type: integer
+          readOnly: true
+        contact:
+          type: integer
+          readOnly: true
         contact_detail:
           allOf:
           - $ref: '#/components/schemas/Contact'
           readOnly: true
         platform:
           type: string
-          readOnly: true
-        unread_count:
-          type: integer
           readOnly: true
         external_chat_id:
           type: string
@@ -1020,6 +1794,17 @@ components:
           maxLength: 255
         status:
           $ref: '#/components/schemas/ConversationStatusEnum'
+        is_pinned:
+          type: boolean
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        snoozed_until:
+          type: string
+          format: date-time
+          nullable: true
+        unread_count:
+          type: integer
+          readOnly: true
         last_message_at:
           type: string
           format: date-time
@@ -1032,12 +1817,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        integration:
-          type: integer
-          readOnly: true
-        contact:
-          type: integer
-          readOnly: true
       required:
       - contact
       - contact_detail
@@ -1048,6 +1827,61 @@ components:
       - platform
       - unread_count
       - updated_at
+    ConversationNote:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        conversation:
+          type: integer
+          readOnly: true
+        author:
+          type: integer
+          readOnly: true
+        author_username:
+          type: string
+          readOnly: true
+        text:
+          type: string
+          maxLength: 5000
+          minLength: 1
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - author
+      - author_username
+      - conversation
+      - created_at
+      - id
+      - text
+      - updated_at
+    ConversationReadResponse:
+      type: object
+      properties:
+        updated:
+          type: integer
+          readOnly: true
+        unread_count:
+          type: integer
+          readOnly: true
+      required:
+      - unread_count
+      - updated
+    ConversationSnooze:
+      type: object
+      properties:
+        snoozed_until:
+          type: string
+          format: date-time
+      required:
+      - snoozed_until
     ConversationStatusEnum:
       enum:
       - open
@@ -1058,6 +1892,138 @@ components:
         * `open` - Open
         * `closed` - Closed
         * `archived` - Archived
+    DashboardStatistics:
+      type: object
+      properties:
+        total_messages:
+          type: integer
+          readOnly: true
+        unread_messages:
+          type: integer
+          readOnly: true
+        telegram_messages:
+          type: integer
+          readOnly: true
+        whatsapp_messages:
+          type: integer
+          readOnly: true
+        instagram_messages:
+          type: integer
+          readOnly: true
+        total_conversations:
+          type: integer
+          readOnly: true
+        open_conversations:
+          type: integer
+          readOnly: true
+        total_orders:
+          type: integer
+          readOnly: true
+        new_orders:
+          type: integer
+          readOnly: true
+        completed_orders:
+          type: integer
+          readOnly: true
+      required:
+      - completed_orders
+      - instagram_messages
+      - new_orders
+      - open_conversations
+      - telegram_messages
+      - total_conversations
+      - total_messages
+      - total_orders
+      - unread_messages
+      - whatsapp_messages
+    ExternalURLResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+      required:
+      - url
+    GlobalSearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          readOnly: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GlobalSearchResult'
+          readOnly: true
+      required:
+      - query
+      - results
+    GlobalSearchResult:
+      type: object
+      properties:
+        type:
+          allOf:
+          - $ref: '#/components/schemas/GlobalSearchResultTypeEnum'
+          readOnly: true
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        subtitle:
+          type: string
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        platform:
+          type: string
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - platform
+      - status
+      - subtitle
+      - title
+      - type
+      - url
+    GlobalSearchResultTypeEnum:
+      enum:
+      - contact
+      - conversation
+      - order
+      - message
+      type: string
+      description: |-
+        * `contact` - contact
+        * `conversation` - conversation
+        * `order` - order
+        * `message` - message
+    InstagramOAuthStart:
+      type: object
+      properties:
+        name:
+          type: string
+          default: Instagram
+          maxLength: 255
+    InstagramOAuthStartResponse:
+      type: object
+      properties:
+        authorization_url:
+          type: string
+          format: uri
+        expires_in:
+          type: integer
+          minimum: 1
+      required:
+      - authorization_url
+      - expires_in
     Integration:
       type: object
       properties:
@@ -1079,12 +2045,9 @@ components:
           type: string
           readOnly: true
         webhook_url:
-          oneOf:
-          - type: string
-            format: uri
-            maxLength: 200
-          - type: string
-            maxLength: 0
+          type: string
+          format: uri
+          readOnly: true
         last_sync_at:
           type: string
           format: date-time
@@ -1101,9 +2064,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        user:
-          type: integer
-          readOnly: true
       required:
       - created_at
       - external_account_id
@@ -1114,7 +2074,14 @@ components:
       - platform
       - status
       - updated_at
-      - user
+      - webhook_url
+    IntegrationID:
+      type: object
+      properties:
+        integration_id:
+          type: integer
+      required:
+      - integration_id
     IntegrationStatusEnum:
       enum:
       - active
@@ -1127,6 +2094,43 @@ components:
         * `inactive` - Inactive
         * `error` - Error
         * `pending` - Pending
+    Login:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+      - user
+    LogoutRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - refresh
     Message:
       type: object
       properties:
@@ -1215,7 +2219,7 @@ components:
           readOnly: true
         type:
           allOf:
-          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/NotificationTypeEnum'
           readOnly: true
         title:
           type: string
@@ -1239,6 +2243,20 @@ components:
       - title
       - type
       - user
+    NotificationTypeEnum:
+      enum:
+      - new_message
+      - message_failed
+      - new_order
+      - integration_error
+      - system
+      type: string
+      description: |-
+        * `new_message` - New Message
+        * `message_failed` - Message Failed
+        * `new_order` - New Order
+        * `integration_error` - Integration Error
+        * `system` - System
     Order:
       type: object
       properties:
@@ -1331,6 +2349,14 @@ components:
         * `processing` - Processing
         * `completed` - Completed
         * `cancelled` - Cancelled
+    OutgoingMessage:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 4096
+      required:
+      - text
     PaginatedContactList:
       type: object
       required:
@@ -1377,6 +2403,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Conversation'
+    PaginatedConversationNoteList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationNote'
     PaginatedIntegrationList:
       type: object
       required:
@@ -1475,15 +2524,18 @@ components:
         id:
           type: integer
           readOnly: true
+        integration:
+          type: integer
+          readOnly: true
+        contact:
+          type: integer
+          readOnly: true
         contact_detail:
           allOf:
           - $ref: '#/components/schemas/Contact'
           readOnly: true
         platform:
           type: string
-          readOnly: true
-        unread_count:
-          type: integer
           readOnly: true
         external_chat_id:
           type: string
@@ -1493,6 +2545,17 @@ components:
           maxLength: 255
         status:
           $ref: '#/components/schemas/ConversationStatusEnum'
+        is_pinned:
+          type: boolean
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        snoozed_until:
+          type: string
+          format: date-time
+          nullable: true
+        unread_count:
+          type: integer
+          readOnly: true
         last_message_at:
           type: string
           format: date-time
@@ -1504,12 +2567,6 @@ components:
         updated_at:
           type: string
           format: date-time
-          readOnly: true
-        integration:
-          type: integer
-          readOnly: true
-        contact:
-          type: integer
           readOnly: true
     PatchedIntegration:
       type: object
@@ -1532,12 +2589,9 @@ components:
           type: string
           readOnly: true
         webhook_url:
-          oneOf:
-          - type: string
-            format: uri
-            maxLength: 200
-          - type: string
-            maxLength: 0
+          type: string
+          format: uri
+          readOnly: true
         last_sync_at:
           type: string
           format: date-time
@@ -1553,9 +2607,6 @@ components:
         updated_at:
           type: string
           format: date-time
-          readOnly: true
-        user:
-          type: integer
           readOnly: true
     PatchedOrder:
       type: object
@@ -1633,10 +2684,24 @@ components:
       enum:
       - telegram
       - whatsapp
+      - instagram
       type: string
       description: |-
         * `telegram` - Telegram
         * `whatsapp` - WhatsApp
+        * `instagram` - Instagram
+    PriorityEnum:
+      enum:
+      - low
+      - normal
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `normal` - Normal
+        * `high` - High
+        * `urgent` - Urgent
     Register:
       type: object
       properties:
@@ -1675,6 +2740,46 @@ components:
       - password
       - updated_at
       - username
+    RegisterResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        tokens:
+          allOf:
+          - $ref: '#/components/schemas/TokenPairResponse'
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - first_name
+      - id
+      - last_name
+      - tokens
+      - updated_at
+      - username
     SenderTypeEnum:
       enum:
       - customer
@@ -1685,6 +2790,54 @@ components:
         * `customer` - Customer
         * `business` - Business
         * `system` - System
+    Telegram2FA:
+      type: object
+      properties:
+        integration_id:
+          type: integer
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - integration_id
+      - password
+    TelegramStart:
+      type: object
+      properties:
+        phone:
+          type: string
+          maxLength: 32
+        name:
+          type: string
+          default: Telegram
+          maxLength: 255
+        api_id:
+          type: integer
+          minimum: 1
+          writeOnly: true
+        api_hash:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9a-fA-F]{32}$
+      required:
+      - api_hash
+      - api_id
+      - phone
+    TelegramStartResponse:
+      type: object
+      properties:
+        integration_id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/TelegramStartResponseStatusEnum'
+      required:
+      - integration_id
+      - status
+    TelegramStartResponseStatusEnum:
+      enum:
+      - code_sent
+      type: string
+      description: '* `code_sent` - code_sent'
     TelegramVerify:
       type: object
       properties:
@@ -1696,6 +2849,28 @@ components:
       required:
       - code
       - integration_id
+    TelegramVerifyResponse:
+      type: object
+      properties:
+        integration:
+          $ref: '#/components/schemas/Integration'
+        requires_2fa:
+          type: boolean
+      required:
+      - integration
+      - requires_2fa
+    TokenPairResponse:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
     TokenRefresh:
       type: object
       properties:
@@ -1707,18 +2882,6 @@ components:
       required:
       - access
       - refresh
-    TypeEnum:
-      enum:
-      - new_message
-      - new_order
-      - integration_error
-      - system
-      type: string
-      description: |-
-        * `new_message` - New Message
-        * `new_order` - New Order
-        * `integration_error` - Integration Error
-        * `system` - System
     User:
       type: object
       properties:
@@ -1752,6 +2915,50 @@ components:
       - id
       - updated_at
       - username
+    WhatsAppConnect:
+      type: object
+      properties:
+        name:
+          type: string
+          default: WhatsApp
+          maxLength: 255
+        access_token:
+          type: string
+          writeOnly: true
+          minLength: 8
+        phone_number_id:
+          type: string
+          pattern: ^\d+$
+        business_account_id:
+          oneOf:
+          - type: string
+            pattern: ^\d+$
+          - type: string
+            maxLength: 0
+        app_secret:
+          type: string
+          writeOnly: true
+          minLength: 8
+        verify_token:
+          type: string
+          writeOnly: true
+          maxLength: 255
+          minLength: 8
+      required:
+      - access_token
+      - app_secret
+      - phone_number_id
+      - verify_token
+    WhatsAppTestResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+      required:
+      - ok
+      - status
   securitySchemes:
     jwtAuth:
       type: http

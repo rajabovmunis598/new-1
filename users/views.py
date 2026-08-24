@@ -1,3 +1,4 @@
+from django.core.mail import send_mail
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,11 +9,34 @@ def tokens_for(user):
     refresh = RefreshToken.for_user(user)
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
+def send_welcome_email(user):
+    subject = "Хуш омадед ба Munis Business Hub!"
+    name = user.first_name or user.username
+    message = (
+        f"Салом {name}!\n\n"
+        f"Шумо ба Munis Business Hub сабти ном шудед.\n\n"
+        f"Акнун шумо метавонед паёмҳои Telegram, WhatsApp ва Instagram "
+        f"аз як фазои корӣ идора кунед.\n\n"
+        f"Бо эҳтиром,\n"
+        f"Мунис Тим"
+    )
+    try:
+        send_mail(
+            subject,
+            message,
+            None,
+            [user.email],
+            fail_silently=True,
+        )
+    except Exception:
+        pass
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
     def perform_create(self, serializer):
         self.user = serializer.save()
+        send_welcome_email(self.user)
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         response.data["tokens"] = tokens_for(self.user)
