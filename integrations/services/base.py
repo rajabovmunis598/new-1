@@ -37,11 +37,12 @@ class BaseIntegration:
         external_id=None,
         metadata=None,
         external_created_at=None,
+        sender_type="business",
     ):
         timestamp = external_created_at or timezone.now()
         external_key = str(external_id) if external_id not in (None, "") else ""
         defaults = {
-            "sender_type": "business",
+            "sender_type": sender_type,
             "text": text,
             "external_created_at": timestamp,
             "metadata": metadata or {},

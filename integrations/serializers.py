@@ -46,12 +46,12 @@ class IntegrationSerializer(serializers.ModelSerializer):
         configured = str(getattr(settings, "WHATSAPP_WEBHOOK_BASE_URL", "")).strip()
         if configured:
             return configured.rstrip("/") + path
-        request = self.context.get("request")
-        if request is not None:
-            return request.build_absolute_uri(path)
         site = str(getattr(settings, "SITE_URL", "")).strip()
         if site:
             return site.rstrip("/") + path
+        request = self.context.get("request")
+        if request is not None:
+            return request.build_absolute_uri(path)
         return obj.webhook_url
 
 
@@ -108,6 +108,20 @@ class WhatsAppConnectSerializer(serializers.Serializer):
     )
     app_secret = serializers.CharField(write_only=True, min_length=8)
     verify_token = serializers.CharField(write_only=True, min_length=8, max_length=255)
+
+
+class ViberConnectSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, default="Viber")
+    auth_token = serializers.CharField(write_only=True, min_length=16)
+
+
+class VKConnectSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255, default="VK")
+    group_id = serializers.RegexField(r"^\d+$")
+    access_token = serializers.CharField(write_only=True, min_length=16)
+    secret = serializers.CharField(write_only=True, min_length=4)
+    confirmation = serializers.CharField(write_only=True, min_length=1)
+    api_version = serializers.CharField(max_length=20, default="5.199")
 
 
 class InstagramOAuthStartSerializer(serializers.Serializer):

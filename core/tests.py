@@ -1,4 +1,4 @@
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -111,6 +111,21 @@ class DashboardStatisticsTests(APITestCase):
         self.assertEqual(response.data["instagram_messages"], 1)
         self.assertEqual(response.data["telegram_messages"], 0)
         self.assertEqual(response.data["whatsapp_messages"], 0)
+
+
+class AISuggestionsTests(APITestCase):
+    @override_settings(OPENROUTER_API_KEY="")
+    def test_ai_has_local_fallback_when_provider_is_not_configured(self):
+        user = User.objects.create_user(
+            email="ai@example.com",
+            username="ai-owner",
+            password="StrongPass123!",
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post("/api/ai/suggestions/", {"text": "Салом"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["source"], "local")
+        self.assertEqual(len(response.data["suggestions"]), 3)
 
 
 class GlobalSearchTests(APITestCase):

@@ -100,6 +100,16 @@ class ConversationViewSet(ModelViewSet):
         platform = params.get("platform")
         if platform:
             queryset = queryset.filter(integration__platform=platform)
+        unread = params.get("unread")
+        if unread is not None:
+            normalized = unread.strip().lower()
+            if normalized in {"true", "1"}:
+                queryset = queryset.filter(
+                    messages__sender_type="customer",
+                    messages__is_read=False,
+                ).distinct()
+            elif normalized not in {"false", "0"}:
+                raise ValidationError("Use true/false or 1/0 for unread.")
         if params.get("date_from"):
             queryset = queryset.filter(created_at__gte=params["date_from"])
         if params.get("date_to"):

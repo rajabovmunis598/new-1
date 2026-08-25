@@ -48,8 +48,9 @@ class InstagramAPIClient:
                 "Instagram App ID ва App Secret дар танзимоти сервер ворид нашудаанд."
             )
 
-    def authorization_url(self, *, redirect_uri, state):
+    def authorization_url(self, *, redirect_uri, state, scopes=None):
         self.require_app_credentials()
+        requested_scopes = tuple(scopes or self.scopes)
         query = urllib.parse.urlencode(
             {
                 "enable_fb_login": "0",
@@ -57,7 +58,7 @@ class InstagramAPIClient:
                 "client_id": self.app_id,
                 "redirect_uri": redirect_uri,
                 "response_type": "code",
-                "scope": ",".join(self.scopes),
+                "scope": ",".join(requested_scopes),
                 "state": state,
             }
         )
@@ -270,6 +271,8 @@ class InstagramMessagingIntegration(BaseIntegration):
         )
 
     def send_message(self, conversation, text):
+        if self.integration.get_credentials().get("demo"):
+            return self.save_outgoing(conversation, text, metadata={"demo": True, "delivery_status": "sent"})
         if self.integration.status != "active":
             raise ValidationError("Пайвасти Instagram фаъол нест.")
         recipient_id = conversation.contact.external_id or conversation.external_chat_id

@@ -2,21 +2,21 @@ import { api, results } from "./api.js?v=20260823-6";
 import {
   avatar, emptyState, escapeHTML, formatRelative, icon, pageSkeleton,
   setButtonLoading, toast,
-} from "./ui.js?v=20260823-6";
-import { renderLanding } from "./pages/landing.js?v=20260823-6";
-import { renderDashboard } from "./pages/dashboard.js?v=20260823-6";
-import { renderInbox } from "./pages/inbox.js?v=20260823-6";
+} from "./ui.js?v=20260824-3";
+import { renderLanding } from "./pages/landing.js?v=20260825-wow-9";
+import { renderDashboard } from "./pages/dashboard.js?v=20260825-dashboard-11";
+import { renderInbox } from "./pages/inbox.js?v=20260825-translate-6";
 import { renderContacts } from "./pages/contacts.js?v=20260823-6";
 import { renderOrders } from "./pages/orders.js?v=20260823-6";
-import { renderIntegrations } from "./pages/integrations.js?v=20260823-6";
+import { renderIntegrations } from "./pages/integrations.js?v=20260825-demo-4";
 import { renderSettings } from "./pages/settings.js?v=20260823-6";
 
 const routes = {
   "/dashboard": { title: "Шарҳи умумӣ", subtitle: "Имрӯз дар бизнеси шумо чӣ мегузарад", icon: "dashboard", render: renderDashboard },
-  "/messages": { title: "Паёмҳо", subtitle: "Telegram, WhatsApp ва Instagram дар як ҷо", icon: "messages", render: renderInbox },
+  "/messages": { title: "Паёмҳо", subtitle: "Telegram, WhatsApp, Instagram, Facebook, Viber ва VK дар як ҷо", icon: "messages", render: renderInbox },
   "/contacts": { title: "Муштариён", subtitle: "Контактҳо ва таърихи муошират", icon: "contacts", render: renderContacts },
   "/orders": { title: "Фармоишҳо", subtitle: "Назорат аз қабул то анҷом", icon: "orders", render: renderOrders },
-  "/integrations": { title: "Пайвастҳо", subtitle: "Каналҳои Telegram, WhatsApp ва Instagram", icon: "integrations", render: renderIntegrations },
+  "/integrations": { title: "Пайвастҳо", subtitle: "Каналҳои Telegram, WhatsApp, Instagram, Facebook, Viber ва VK", icon: "integrations", render: renderIntegrations },
   "/settings": { title: "Танзимот", subtitle: "Профил, намуди интерфейс ва амният", icon: "settings", render: renderSettings },
 };
 
@@ -187,8 +187,8 @@ class MunisApp {
         <div class="auth-copy">
           <div class="auth-kicker">Communication, бе парокандагӣ</div>
           <h1>Ҳамаи паёмҳои бизнес дар як ҷо.</h1>
-          <p>Telegram, WhatsApp, Instagram, муштариён ва фармоишҳоро аз як dashboard-и равшан идора кунед.</p>
-          <div class="auth-platforms"><span class="auth-platform"><i style="background:#35a8e8"></i>Telegram</span><span class="auth-platform"><i style="background:#31d069"></i>WhatsApp</span><span class="auth-platform"><i style="background:#d62976"></i>Instagram</span></div>
+          <p>Telegram, WhatsApp, Instagram, Facebook, муштариён ва фармоишҳоро аз як dashboard-и равшан идора кунед.</p>
+          <div class="auth-platforms"><span class="auth-platform"><i style="background:#35a8e8"></i>Telegram</span><span class="auth-platform"><i style="background:#31d069"></i>WhatsApp</span><span class="auth-platform"><i style="background:#d62976"></i>Instagram</span><span class="auth-platform"><i style="background:#1877f2"></i>Facebook</span></div>
           <div class="auth-preview">${authPreviewRow("Али", "#6558ee", true)}${authPreviewRow("Манижа", "#16a34a")}${authPreviewRow("Фарид", "#2481cc")}</div>
         </div>
         <div class="auth-footer">© 2026 Munis Business Hub · Муоширати муназзами бизнес</div>
@@ -405,7 +405,7 @@ class MunisApp {
         },
       },
       {
-        id: "quick-connect", group: "Амали зуд", title: "Пайвасти нав", subtitle: "Telegram, WhatsApp ё Instagram", icon: "integrations", trailing: "Канал",
+        id: "quick-connect", group: "Амали зуд", title: "Пайвасти нав", subtitle: "Telegram, WhatsApp, Instagram ё Facebook", icon: "integrations", trailing: "Канал",
         keywords: "пайваст интегратсия telegram whatsapp instagram connect",
         action: () => this.navigate("/integrations"),
       },

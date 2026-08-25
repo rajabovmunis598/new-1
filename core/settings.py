@@ -32,8 +32,11 @@ INTEGRATION_ENCRYPTION_KEY = os.getenv('INTEGRATION_ENCRYPTION_KEY') or SECRET_K
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEMO_MODE = os.getenv('DEMO_MODE', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
+SITE_URL = os.getenv('SITE_URL', '').strip()
+WHATSAPP_WEBHOOK_BASE_URL = os.getenv('WHATSAPP_WEBHOOK_BASE_URL', '').strip()
 
 
 # Application definition
@@ -116,7 +119,18 @@ INSTAGRAM_VERIFY_TOKEN = os.getenv('INSTAGRAM_VERIFY_TOKEN', '')
 INSTAGRAM_API_VERSION = os.getenv('INSTAGRAM_API_VERSION', 'v24.0')
 INSTAGRAM_REDIRECT_URI = os.getenv('INSTAGRAM_REDIRECT_URI', '').strip()
 INSTAGRAM_OAUTH_STATE_TTL = int(os.getenv('INSTAGRAM_OAUTH_STATE_TTL', '600'))
+FACEBOOK_APP_ID = os.getenv('FACEBOOK_APP_ID', '')
+FACEBOOK_APP_SECRET = os.getenv('FACEBOOK_APP_SECRET', '')
+FACEBOOK_VERIFY_TOKEN = os.getenv('FACEBOOK_VERIFY_TOKEN', '')
+FACEBOOK_REDIRECT_URI = os.getenv('FACEBOOK_REDIRECT_URI', '').strip()
+FACEBOOK_OAUTH_STATE_TTL = int(os.getenv('FACEBOOK_OAUTH_STATE_TTL', '600'))
+VK_APP_ID = os.getenv('VK_APP_ID', '')
+VK_APP_SECRET = os.getenv('VK_APP_SECRET', '')
+VK_REDIRECT_URI = os.getenv('VK_REDIRECT_URI', '').strip()
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', 'openai/gpt-4o-mini')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')
 
 TEMPLATES = [
     {
@@ -218,6 +232,7 @@ REST_FRAMEWORK = {
         'telegram_verify': '20/hour',
         'telegram_2fa': '10/hour',
         'instagram_oauth_start': '20/hour',
+        'facebook_oauth_start': '20/hour',
     },
 }
 

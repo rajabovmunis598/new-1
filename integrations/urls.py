@@ -3,8 +3,10 @@ from django.urls import path
 from .views import (
     FacebookOAuthCallbackView,
     FacebookOAuthStartView,
+    FacebookDemoConnectView,
     InstagramOAuthCallbackView,
     InstagramOAuthStartView,
+    InstagramDemoConnectView,
     PlatformDisconnectView,
     Telegram2FAView,
     TelegramStartView,
@@ -12,6 +14,11 @@ from .views import (
     TelegramVerifyView,
     WhatsAppConnectView,
     WhatsAppTestView,
+    ViberConnectView,
+    VKConnectView,
+    VKDemoConnectView,
+    VKOAuthCompleteView,
+    VKOAuthStartView,
 )
 
 
@@ -45,6 +52,13 @@ urlpatterns = [
     path("whatsapp/connect/", WhatsAppConnectView.as_view()),
     path("whatsapp/disconnect/", disconnect_wa.as_view()),
     path("whatsapp/test/", WhatsAppTestView.as_view()),
+    path("viber/connect/", ViberConnectView.as_view()),
+    path("vk/connect/", VKConnectView.as_view()),
+    path("vk/demo/", VKDemoConnectView.as_view()),
+    path("instagram/demo/", InstagramDemoConnectView.as_view()),
+    path("facebook/demo/", FacebookDemoConnectView.as_view()),
+    path("vk/oauth/start/", VKOAuthStartView.as_view()),
+    path("vk/oauth/complete/", VKOAuthCompleteView.as_view()),
     path(
         "instagram/connect/start/",
         InstagramOAuthStartView.as_view(),

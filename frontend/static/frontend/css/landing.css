@@ -306,6 +306,7 @@
 .landing-platform-float.telegram { top: 10px; right: 22px; color: #79c9ff; }
 .landing-platform-float.whatsapp { z-index: 6; bottom: 36px; left: -26px; color: #61dd91; }
 .landing-platform-float.instagram { top: 28px; left: -20px; color: #ff86bd; }
+.landing-platform-float.vk { top: 112px; right: -28px; color: #79bfff; animation-delay: -2.6s; }
 .landing-response-float { right: -16px; bottom: 13px; color: #c4beff; }
 .landing-trust-row { position: relative; z-index: 3; min-height: 78px; padding-block: 22px; display: flex; align-items: center; justify-content: center; gap: 22px; border-top: 1px solid rgba(255, 255, 255, .09); color: #7f8ba2; font-size: 11px; }
 .landing-trust-row strong { color: #aeb8ca; font-size: 11px; }
@@ -812,3 +813,32 @@
   .landing-page *::before,
   .landing-page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Premium presentation layer */
+.landing-page { background: #fbfcff; }
+.landing-hero { isolation: isolate; }
+.landing-hero::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .55;
+  background: radial-gradient(circle at 62% 42%, rgba(129, 119, 255, .16), transparent 27%), linear-gradient(115deg, transparent 30%, rgba(255,255,255,.04) 50%, transparent 70%);
+}
+.landing-hero-copy h1 { text-shadow: 0 5px 28px rgba(0, 0, 0, .14); }
+.landing-hero-copy h1 em { background: linear-gradient(100deg, #a69fff, #6ee7f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.landing-dashboard { transform: perspective(1400px) rotateY(-2deg) rotateX(1deg); transition: transform .45s ease, box-shadow .45s ease; }
+.landing-dashboard:hover { transform: perspective(1400px) rotateY(0) rotateX(0) translateY(-8px); box-shadow: 0 42px 95px rgba(3, 7, 18, .42); }
+.landing-platform-float, .landing-response-float { animation: landing-float 5.5s ease-in-out infinite; }
+.landing-platform-float.whatsapp { animation-delay: -1.8s; }
+.landing-platform-float.instagram { animation-delay: -3.4s; }
+.landing-response-float { animation-delay: -4.2s; }
+.landing-problem-grid article, .landing-security-card, .landing-flow-panel, .landing-vision-grid article { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.landing-problem-grid article:hover, .landing-security-card:hover, .landing-flow-panel:hover, .landing-vision-grid article:hover { transform: translateY(-7px); box-shadow: 0 22px 45px rgba(27, 38, 70, .12); border-color: #c9c5ff; }
+.landing-ecosystem { overflow: hidden; background: linear-gradient(145deg, #11182a 0%, #181d3b 55%, #27215c 100%); }
+.landing-ecosystem::before { content: ""; position: absolute; width: 520px; height: 520px; top: -250px; right: -180px; border: 80px solid rgba(123, 114, 255, .13); border-radius: 50%; pointer-events: none; }
+.landing-map-hub { box-shadow: 0 0 0 14px rgba(117, 109, 255, .08), 0 0 0 32px rgba(117, 109, 255, .04), 0 24px 60px rgba(0, 0, 0, .24); }
+.landing-map-column.sources .vk > span { color: #79bfff; background: rgba(39, 135, 245, .16); }
+.landing-final-cta { background: radial-gradient(circle at 50% 0%, rgba(112, 102, 255, .3), transparent 42%), linear-gradient(135deg, #11182a, #251f59); }
+@keyframes landing-float { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-9px) rotate(.5deg); } }

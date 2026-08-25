@@ -9,6 +9,8 @@ class Integration(models.Model):
         ("whatsapp", "WhatsApp"),
         ("instagram", "Instagram"),
         ("facebook", "Facebook"),
+        ("viber", "Viber"),
+        ("vk", "VK"),
     ]
     STATUS_CHOICES = [
         ("active", "Active"),

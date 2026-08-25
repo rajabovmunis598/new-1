@@ -30,18 +30,49 @@ def _process_whatsapp_event(event_id):
     try:
         msg = event.payload["message"]
         contact = (event.payload.get("contacts") or [{}])[0]
-        text = msg.get("text", {}).get("body", "")
+        message_type = str(msg.get("type") or "other")
+        message_data = msg.get(message_type) or {}
+        if not isinstance(message_data, dict):
+            message_data = {}
+        text = str(
+            (message_data.get("body") if message_type == "text" else "")
+            or message_data.get("caption")
+            or message_data.get("title")
+            or message_data.get("emoji")
+            or ""
+        )
+        if message_type == "interactive":
+            reply = message_data.get("button_reply") or message_data.get("list_reply") or {}
+            if isinstance(reply, dict):
+                text = str(reply.get("title") or reply.get("description") or text)
+        if message_type == "button":
+            text = str(message_data.get("text") or message_data.get("payload") or text)
+        if message_type == "location" and not text:
+            text = ", ".join(
+                str(message_data.get(key) or "")
+                for key in ("name", "address", "latitude", "longitude")
+                if message_data.get(key)
+            )
+        try:
+            timestamp = timezone.datetime.fromtimestamp(
+                int(msg.get("timestamp")), tz=timezone.get_current_timezone()
+            )
+        except (TypeError, ValueError, OverflowError, OSError):
+            timestamp = timezone.now()
         data = {
             "id": msg.get("id"),
+            "message_id": msg.get("id"),
             "from": msg.get("from"),
+            "contact_id": msg.get("from"),
+            "chat_id": msg.get("from"),
             "phone": msg.get("from"),
             "name": contact.get("profile", {}).get("name", ""),
-            "type": msg.get("type", "other"),
+            "type": message_type,
             "text": text,
-            "timestamp": timezone.datetime.fromtimestamp(
-                int(msg.get("timestamp", timezone.now().timestamp())),
-                tz=timezone.get_current_timezone(),
-            ),
+            "media_url": "",
+            "timestamp": timestamp,
+            "sender_type": "customer",
+            "whatsapp_media_id": str(message_data.get("id") or ""),
         }
         from .services import get_adapter
 

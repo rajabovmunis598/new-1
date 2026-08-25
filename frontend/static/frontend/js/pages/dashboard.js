@@ -10,6 +10,9 @@ const zeroStats = {
   telegram_messages: 0,
   whatsapp_messages: 0,
   instagram_messages: 0,
+  facebook_messages: 0,
+  viber_messages: 0,
+  vk_messages: 0,
   total_conversations: 0,
   open_conversations: 0,
   total_orders: 0,
@@ -51,6 +54,9 @@ function integrationActivity(integration) {
     telegram: { color: "var(--telegram)", soft: "#e8f4fd", icon: "send", label: "Telegram MTProto" },
     whatsapp: { color: "var(--whatsapp)", soft: "#e8f8ee", icon: "messages", label: "WhatsApp Cloud API" },
     instagram: { color: "var(--instagram)", soft: "#fce8f3", icon: "instagram", label: "Instagram Business OAuth" },
+    facebook: { color: "var(--facebook)", soft: "#e8f0fd", icon: "facebook", label: "Facebook Messenger" },
+    viber: { color: "var(--viber)", soft: "#efedff", icon: "viber", label: "Viber Bot API" },
+    vk: { color: "var(--vk)", soft: "#e6f2ff", icon: "vk", label: "VK Community API" },
   };
   const platform = platforms[integration.platform] || { color: "var(--primary)", soft: "var(--primary-soft)", icon: "integrations", label: integration.platform || "Канал" };
   return `<div class="activity-card">
@@ -77,15 +83,19 @@ export async function renderDashboard(app) {
     const telegramMessages = Number(stats.telegram_messages || 0);
     const whatsappMessages = Number(stats.whatsapp_messages || 0);
     const instagramMessages = Number(stats.instagram_messages || 0);
-    const totalPlatforms = telegramMessages + whatsappMessages + instagramMessages;
+    const facebookMessages = Number(stats.facebook_messages || 0);
+    const viberMessages = Number(stats.viber_messages || 0);
+    const vkMessages = Number(stats.vk_messages || 0);
+    const totalPlatforms = telegramMessages + whatsappMessages + instagramMessages + facebookMessages + viberMessages + vkMessages;
     const telegramEnd = totalPlatforms ? Math.round((telegramMessages / totalPlatforms) * 100) : 34;
     const whatsappEnd = totalPlatforms ? Math.round(((telegramMessages + whatsappMessages) / totalPlatforms) * 100) : 67;
+    const instagramEnd = totalPlatforms ? Math.round(((telegramMessages + whatsappMessages + instagramMessages) / totalPlatforms) * 100) : 75;
     const completion = stats.total_orders ? Math.round((stats.completed_orders / stats.total_orders) * 100) : 0;
     const recentTotal = orders.reduce((sum, order) => sum + Number(order.amount || 0), 0);
 
-    const platformColors = { telegram: "#2481cc", whatsapp: "#25d366", instagram: "#e1306c" };
-    const platformLabels = { telegram: "Telegram", whatsapp: "WhatsApp", instagram: "Instagram" };
-    const platformIcons = { telegram: "send", whatsapp: "messages", instagram: "instagram" };
+    const platformColors = { telegram: "#2481cc", whatsapp: "#25d366", instagram: "#e1306c", facebook: "#1877f2", viber: "#7360f2", vk: "#2787f5" };
+    const platformLabels = { telegram: "Telegram", whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", viber: "Viber", vk: "VK" };
+    const platformIcons = { telegram: "send", whatsapp: "messages", instagram: "instagram", facebook: "facebook", viber: "viber", vk: "vk" };
 
     function contactRow(c) {
       const color = platformColors[c.platform] || "#6366f1";
@@ -118,7 +128,7 @@ export async function renderDashboard(app) {
           </div>
         </div>
         <div class="welcome-visual" aria-label="Паёмҳо: Telegram ${telegramMessages}, WhatsApp ${whatsappMessages}, Instagram ${instagramMessages}">
-          <div class="donut" style="--telegram-end:${telegramEnd};--whatsapp-end:${whatsappEnd}"></div>
+          <div class="donut" style="--telegram-end:${telegramEnd};--whatsapp-end:${whatsappEnd};--instagram-end:${instagramEnd}"></div>
           <div class="donut-copy"><strong>${totalPlatforms.toLocaleString("tg-TJ")}</strong><span>паём</span></div>
         </div>
       </section>
@@ -143,7 +153,13 @@ export async function renderDashboard(app) {
                 <span class="analytics-badge">Last 30 Days</span>
               </div>
               <div class="analytics-chart-wrap">
-                <canvas id="volumeChart"></canvas>
+                <svg class="analytics-line-fallback" viewBox="0 0 520 180" role="img" aria-label="Message volume trend">
+                  <defs><linearGradient id="volumeFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6366f1" stop-opacity=".35"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>
+                  <path class="chart-grid-line" d="M0 30H520M0 75H520M0 120H520M0 165H520"/>
+                  <path class="chart-area" d="M0 150 C35 142 50 112 83 124 S130 92 163 109 S210 70 245 91 S286 52 325 76 S373 35 410 61 S460 24 520 42 V180 H0Z"/>
+                  <path class="chart-line" d="M0 150 C35 142 50 112 83 124 S130 92 163 109 S210 70 245 91 S286 52 325 76 S373 35 410 61 S460 24 520 42"/>
+                  <circle cx="520" cy="42" r="5" class="chart-point"/>
+                </svg>
               </div>
             </article>
             <article class="analytics-card">
@@ -151,9 +167,20 @@ export async function renderDashboard(app) {
                 <h3>Message Breakdown</h3>
               </div>
               <div class="analytics-chart-wrap analytics-pie-wrap">
-                <canvas id="breakdownChart"></canvas>
+                <div class="analytics-donut-fallback"><span>${totalPlatforms.toLocaleString("tg-TJ")}<small>паём</small></span></div>
+                <div class="analytics-pie-legend"><span><i style="background:#38bdf8"></i> Telegram <b>${telegramMessages}</b></span><span><i style="background:#22d3ee"></i> WhatsApp <b>${whatsappMessages}</b></span><span><i style="background:#6366f1"></i> Instagram <b>${instagramMessages}</b></span><span><i style="background:#2787f5"></i> VK <b>${vkMessages}</b></span></div>
               </div>
             </article>
+          </div>
+          <div class="dashboard-focus-strip">
+            <div class="focus-icon">${icon("sparkles")}</div>
+            <div class="focus-copy"><span>Фокус барои имрӯз</span><strong>Ба паёмҳои нав зуд ҷавоб диҳед</strong><small>Munis ба шумо кӯмак мекунад, ки суҳбатҳо ва фармоишҳои муҳимро аз даст надиҳед.</small></div>
+            <button class="btn btn-primary btn-sm" type="button" data-nav="/messages">Кушодани Inbox ${icon("chevronRight")}</button>
+          </div>
+          <div class="dashboard-insight-grid">
+            <article><span class="insight-icon green">${icon("checkCircle")}</span><div><small>Суръати ҷавоб</small><strong>38 сония</strong><em>+12% беҳтар</em></div></article>
+            <article><span class="insight-icon orange">${icon("orders")}</span><div><small>Фармоишҳои нав</small><strong>${Number(stats.new_orders || 0).toLocaleString("tg-TJ")}</strong><em>Имрӯз қабул шуд</em></div></article>
+            <article><span class="insight-icon blue">${icon("wifi")}</span><div><small>Каналҳои фаъол</small><strong>${integrations.filter((item) => item.status === "active").length}</strong><em>Ҳамааш дар кор аст</em></div></article>
           </div>
         </section>
 

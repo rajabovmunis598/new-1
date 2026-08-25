@@ -4,6 +4,9 @@ const iconPaths = {
   contacts: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   orders: '<path d="M6 2h12l2 4v16H4V6z"/><path d="M4 6h16M9 10h6"/>',
   integrations: '<path d="M8 12h8M12 8v8"/><path d="M5.5 8.5 3 6l3-3 2.5 2.5M18.5 15.5 21 18l-3 3-2.5-2.5M15.5 5.5 18 3l3 3-2.5 2.5M8.5 18.5 6 21l-3-3 2.5-2.5"/>',
+  facebook: '<path d="M14 8h3V4h-3c-2.8 0-5 2.2-5 5v3H6v4h3v4h4v-4h3l1-4h-4V9c0-.6.4-1 1-1z"/>',
+  viber: '<path d="M20 4.5C17.5 2 7 1.5 4.2 4.3 1.8 6.7 2.1 15 5 18l-2 3 3.7-1.4c3.4 1.4 11.9.5 13.3-2.8 1-2.5 1-9.8 0-12.3z"/><path d="M8 8c1 3 3 5 6 6M9 7h2M15 13v2"/>',
+  vk: '<path d="M4 7c.3 5 2.9 10 8 10h.3v-3.1c1.9.2 3.3 1.5 4 3.1H20c-.5-2-2.1-3.5-3.5-4.2 1.2-.7 2.5-2.4 3-4.8h-3.1c-.6 2.1-1.6 3.6-2.8 3.8V8H10v4.2C8.8 11.8 7.8 10.3 7.5 8H4z"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.18.38.47.7.84.9.3.17.66.26 1.01.26H21v4h-.1A1.7 1.7 0 0 0 19.4 15z"/>',
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
@@ -77,7 +80,7 @@ export function avatar(person = {}, size = "") {
   return `<span class="avatar ${size}">${image}</span>`;
 }
 
-const platformLabels = { telegram: "Telegram", whatsapp: "WhatsApp", instagram: "Instagram" };
+const platformLabels = { telegram: "Telegram", whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", viber: "Viber", vk: "VK" };
 const statusLabels = {
   active: "Фаъол", inactive: "Ғайрифаъол", error: "Хатогӣ", pending: "Интизорӣ",
   open: "Кушода", closed: "Пӯшида", archived: "Бойгонӣ",

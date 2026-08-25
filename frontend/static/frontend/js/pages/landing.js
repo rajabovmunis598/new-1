@@ -135,13 +135,14 @@ export function renderLanding(app) {
               <div class="landing-platform-float telegram">${icon("send")}<span><strong>Telegram</strong><small>12 паёми нав</small></span></div>
               <div class="landing-platform-float whatsapp">${icon("messages")}<span><strong>WhatsApp</strong><small>8 паёми нав</small></span></div>
               <div class="landing-platform-float instagram">${icon("instagram")}<span><strong>Instagram</strong><small>5 паёми нав</small></span></div>
+              <div class="landing-platform-float vk">${icon("vk")}<span><strong>VK</strong><small>6 паёми нав</small></span></div>
               ${dashboardPreview("hero-preview")}
               <div class="landing-response-float">${icon("clock")}<span><strong>38 сония</strong><small>вақти миёнаи ҷавоб</small></span></div>
             </div>
           </div>
           <div class="landing-container landing-trust-row">
             <span>Бо технологияҳои боэътимод:</span>
-            <strong>Telegram MTProto</strong><i></i><strong>WhatsApp Cloud API</strong><i></i><strong>Instagram API</strong><i></i><strong>Django</strong>
+            <strong>Telegram MTProto</strong><i></i><strong>WhatsApp Cloud API</strong><i></i><strong>Instagram API</strong><i></i><strong>VK Callback API</strong><i></i><strong>Django</strong>
           </div>
         </section>
 
@@ -192,6 +193,7 @@ export function renderLanding(app) {
               <article class="telegram"><span>${icon("send")}</span><div><strong>Telegram</strong><small>Аккаунти бизнес</small></div><i>${icon("chevronRight")}</i></article>
               <article class="whatsapp"><span>${icon("messages")}</span><div><strong>WhatsApp</strong><small>Business Cloud API</small></div><i>${icon("chevronRight")}</i></article>
               <article class="instagram"><span>${icon("instagram")}</span><div><strong>Instagram</strong><small>Business OAuth</small></div><i>${icon("chevronRight")}</i></article>
+              <article class="vk"><span>${icon("vk")}</span><div><strong>VK</strong><small>Community API</small></div><i>${icon("chevronRight")}</i></article>
             </div>
             <div class="landing-map-hub">
               <span class="landing-map-hub-logo">M</span>

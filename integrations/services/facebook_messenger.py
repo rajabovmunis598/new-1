@@ -203,6 +203,8 @@ class FacebookMessengerIntegration(BaseIntegration):
         )
 
     def send_message(self, conversation, text):
+        if self.integration.get_credentials().get("demo"):
+            return self.save_outgoing(conversation, text, metadata={"demo": True, "delivery_status": "sent"})
         if self.integration.status != "active":
             raise ValidationError("Пайвасти Facebook фаъол нест.")
         recipient_id = conversation.contact.external_id or conversation.external_chat_id

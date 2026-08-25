@@ -13,7 +13,7 @@ import {
   setButtonLoading,
   statusBadge,
   toast,
-} from "../ui.js?v=20260822-8";
+} from "../ui.js?v=20260824-3";
 
 const platformCopy = {
   telegram: {
@@ -34,7 +34,17 @@ const platformCopy = {
   facebook: {
     title: "Facebook",
     description: "Facebook Messenger тавассути Graph API",
-    icon: "integrations",
+    icon: "facebook",
+  },
+  viber: {
+    title: "Viber",
+    description: "Viber Bot тавассути REST API",
+    icon: "viber",
+  },
+  vk: {
+    title: "VK",
+    description: "VK Community тавассути Callback API",
+    icon: "vk",
   },
 };
 
@@ -43,6 +53,8 @@ const platformSoft = {
   whatsapp: "#e8f8ee",
   instagram: "#fce8f3",
   facebook: "#e8f0fd",
+  viber: "#efedff",
+  vk: "#e6f2ff",
 };
 
 const connectDetails = {
@@ -50,6 +62,8 @@ const connectDetails = {
   whatsapp: "Маълумоти Cloud API-ро ворид кунед ва webhook-ро ба Meta илова намоед.",
   instagram: "Бо OAuth-и расмӣ ворид шавед — логин ё гузарвожаи Instagram дар Munis ворид намешавад.",
   facebook: "Бо OAuth-и расмӣ ворид шавед — логин ё гузарвожаи Facebook дар Munis ворид намешавад.",
+  viber: "Bot token-и Viber-ро ворид кунед. Баъд webhook URL-и корти Viber-ро дар Viber Admin Panel сабт кунед.",
+  vk: "Маълумоти Community VK-ро ворид кунед. Callback URL ва confirmation code дар танзимоти Community истифода мешаванд.",
 };
 
 function webhookUrl(integration = {}) {
@@ -128,6 +142,9 @@ async function copyWebhook(integration = {}) {
 function connectCard(platform) {
   const copy = platformCopy[platform];
   const detail = connectDetails[platform];
+  const demoButton = ["vk", "instagram", "facebook"].includes(platform)
+    ? `<button class="btn btn-secondary" type="button" data-page-action="demo-${platform}">Demo барои презентатсия</button>`
+    : "";
   return `<article class="card connect-card">
     <div>
       <div class="connect-card-icon" style="color:var(--${platform})">${icon(copy.icon)}</div>
@@ -135,7 +152,7 @@ function connectCard(platform) {
       <p>${detail}</p>
       <button class="btn btn-primary" type="button" data-page-action="connect-${platform}">
         ${icon("plus")} Пайваст кардан
-      </button>
+      </button>${demoButton}
     </div>
   </article>`;
 }
@@ -177,7 +194,7 @@ function integrationCard(integration) {
   const sync = integration.last_sync_at ? formatRelative(integration.last_sync_at) : "Ҳанӯз ҳамоҳанг нашудааст";
   const created = integration.created_at ? formatDate(integration.created_at) : "-";
   const id = escapeHTML(integration.id);
-  const webhook = platform === "whatsapp" ? webhookUrl(integration) : "";
+  const webhook = ["whatsapp", "viber", "vk"].includes(platform) ? webhookUrl(integration) : "";
 
   return `<article class="card integration-card" style="--integration-soft:${platformSoft[platform] || "var(--primary-soft)"}">
     <div class="integration-card-top">
@@ -198,7 +215,7 @@ function integrationCard(integration) {
 
     ${integration.last_error ? `<div class="inline-alert error" style="margin-bottom:16px">${icon("alert")}<span>${escapeHTML(integration.last_error)}</span></div>` : ""}
 
-    ${platform === "whatsapp" && webhook ? `<div class="webhook-box" style="margin-bottom:16px">
+    ${webhook ? `<div class="webhook-box" style="margin-bottom:16px">
       ${icon("external")}
       <code>${escapeHTML(webhook)}</code>
       <button class="btn btn-ghost btn-icon btn-sm" type="button" data-integration-action="copy-webhook" data-integration-id="${id}" aria-label="Нусха гирифтани webhook">${icon("copy")}</button>
@@ -212,10 +229,16 @@ function pageMarkup(integrations) {
   const hasTelegram = integrations.some((item) => item.platform === "telegram");
   const hasWhatsApp = integrations.some((item) => item.platform === "whatsapp");
   const hasInstagram = integrations.some((item) => item.platform === "instagram");
+  const hasFacebook = integrations.some((item) => item.platform === "facebook");
+  const hasViber = integrations.some((item) => item.platform === "viber");
+  const hasVK = integrations.some((item) => item.platform === "vk");
   const tiles = integrations.map(integrationCard);
   if (!hasTelegram) tiles.push(connectCard("telegram"));
   if (!hasWhatsApp) tiles.push(connectCard("whatsapp"));
   if (!hasInstagram) tiles.push(connectCard("instagram"));
+  if (!hasFacebook) tiles.push(connectCard("facebook"));
+  if (!hasViber) tiles.push(connectCard("viber"));
+  if (!hasVK) tiles.push(connectCard("vk"));
 
   return `<div class="page" data-integrations-page>
     <header class="page-header">
@@ -228,6 +251,9 @@ function pageMarkup(integrations) {
         <button class="btn btn-secondary" type="button" data-page-action="connect-telegram">${icon("send")} Telegram</button>
         <button class="btn btn-secondary" type="button" data-page-action="connect-whatsapp">${icon("phone")} WhatsApp</button>
         <button class="btn btn-primary" type="button" data-page-action="connect-instagram">${icon("instagram")} Instagram</button>
+        <button class="btn btn-secondary" type="button" data-page-action="connect-facebook">${icon("facebook")} Facebook</button>
+        <button class="btn btn-secondary" type="button" data-page-action="connect-viber">${icon("viber")} Viber</button>
+        <button class="btn btn-secondary" type="button" data-page-action="connect-vk">${icon("vk")} VK</button>
       </div>
     </header>
 
@@ -458,6 +484,121 @@ function openTelegramWizard(app, pendingIntegration = null) {
   renderStep();
 }
 
+function openBotChannelForm(app, platform) {
+  const isViber = platform === "viber";
+  const fields = isViber
+    ? `<label class="field"><span class="field-label">Viber Auth Token</span><input class="field-input" name="auth_token" type="password" autocomplete="new-password" required><span class="field-hint">Аз Viber Admin Panel → Bot → Edit Info гиред.</span></label>`
+    : `<div class="form-grid two"><label class="field"><span class="field-label">Group ID</span><input class="field-input" name="group_id" inputmode="numeric" required></label><label class="field"><span class="field-label">API version</span><input class="field-input" name="api_version" value="5.199"></label></div><label class="field"><span class="field-label">Community Access Token</span><input class="field-input" name="access_token" type="password" autocomplete="new-password" required></label><div class="form-grid two"><label class="field"><span class="field-label">Secret</span><input class="field-input" name="secret" type="password" autocomplete="new-password" required></label><label class="field"><span class="field-label">Confirmation code</span><input class="field-input" name="confirmation" required></label></div>`;
+  const formId = `${platform}-connect-form`;
+  const modal = openModal({
+    title: `Пайваст кардани ${platform === "vk" ? "VK" : "Viber"}`,
+    body: `<form id="${formId}" class="form-grid" autocomplete="off" data-bot-channel-form>${formError()}<label class="field"><span class="field-label">Номи пайваст</span><input class="field-input" name="name" value="${platform === "vk" ? "VK" : "Viber"}" required></label>${fields}<div class="credential-note">${icon("info")}<span>Баъд аз пайвастшавӣ webhook URL-ро дар танзимоти ${platform === "vk" ? "VK Community" : "Viber Bot"} ворид кунед.</span></div></form>`,
+    footer: `<button class="btn btn-secondary" type="button" data-modal-close>Бекор</button><button class="btn btn-primary" type="submit" form="${formId}" data-submit>${icon("check")} Пайваст кардан</button>`,
+  });
+  const form = modal.querySelector("[data-bot-channel-form]");
+  const submit = modal.querySelector("[data-submit]");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearFormError(form);
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const path = `/api/integrations/${platform}/connect/`;
+    setButtonLoading(submit, true, "Пайваст шуда истодааст...");
+    try {
+      await api.post(path, payload);
+      closeModal();
+      toast(`${platform === "vk" ? "VK" : "Viber"} пайваст шуд`, "Webhook URL-ро дар панели платформа сабт кунед.");
+      await refreshAfterMutation(app);
+    } catch (error) {
+      setFormError(form, errorMessage(error, "Пайвастшавӣ ноком шуд."));
+      setButtonLoading(submit, false);
+    }
+  });
+}
+
+function openVKOAuth(app) {
+  (async () => {
+    try {
+      const data = await api.post("/api/integrations/vk/oauth/start/", {});
+      const url = safeUrl(data?.authorization_url || "");
+      if (url === "#") throw new Error("VK OAuth URL was not returned by the server.");
+      window.location.assign(url);
+    } catch (error) {
+      const message = errorMessage(error, "VK OAuth дар сервер танзим нашудааст.");
+      if (/VK_APP_ID|OAuth/i.test(message)) {
+        try {
+          const demo = await api.post("/api/integrations/vk/demo/", {});
+          toast("VK Demo пайваст шуд", "Паёмҳои намунавӣ барои намоиш омодаанд.");
+          await app.loadShellData();
+          return demo;
+        } catch (demoError) {
+          toast("VK пайваст нашуд", errorMessage(demoError, message), "error");
+          return null;
+        }
+      }
+      toast("VK пайваст нашуд", message, "error");
+    }
+  })();
+}
+
+function openDemoForm(app, platform) {
+  const title = { vk: "VK Demo", instagram: "Instagram Demo", facebook: "Facebook Demo" }[platform] || "Demo";
+  const formId = `demo-${platform}-form`;
+  const modal = openModal({
+    title: `Пайваст кардани ${title}`,
+    body: `<form id="${formId}" class="form-grid" autocomplete="off">
+      ${formError()}
+      <label class="field"><span class="field-label">Номи аккаунт</span><input class="field-input" name="name" value="${title}" required></label>
+      <label class="field"><span class="field-label">Account ID</span><input class="field-input" name="account_id" placeholder="demo-account"></label>
+      <label class="field"><span class="field-label">Access Token (ихтиёрӣ барои намоиш)</span><input class="field-input" name="access_token" type="password" autocomplete="off"><span class="field-hint">Ин ҳолати Demo аст; token дар база нигоҳ дошта намешавад ва ба платформа фиристода намешавад.</span></label>
+      <div class="credential-note">${icon("info")}<span>Ин пайвасти маҳаллии намоишӣ мебошад, на Instagram/Facebook-и воқеӣ.</span></div>
+    </form>`,
+    footer: `<button class="btn btn-secondary" type="button" data-modal-close>Бекор</button><button class="btn btn-primary" type="submit" form="${formId}" data-submit>${icon("check")} Пайваст кардан</button>`,
+  });
+  const form = modal.querySelector("form");
+  const submit = modal.querySelector("[data-submit]");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearFormError(form);
+    setButtonLoading(submit, true, "Пайваст шуда истодааст...");
+    try {
+      await api.post(`/api/integrations/${platform}/demo/`, Object.fromEntries(new FormData(form).entries()));
+      closeModal();
+      toast(`${title} пайваст шуд`, "Чати намунавӣ барои презентатсия омода аст.");
+      await refreshAfterMutation(app);
+    } catch (error) {
+      setFormError(form, errorMessage(error, "Пайвасткунии Demo иҷро нашуд."));
+      setButtonLoading(submit, false);
+    }
+  });
+}
+
+async function consumeVKOAuth(app) {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const state = hash.get("state");
+  const tokenKey = [...hash.keys()].find((key) => /^access_token(?:_\d+)?$/.test(key));
+  const token = tokenKey ? hash.get(tokenKey) : "";
+  if (!state || !token) return;
+  const groupMatch = tokenKey.match(/^access_token_(\d+)$/);
+  try {
+    const data = await api.post("/api/integrations/vk/oauth/complete/", {
+      state,
+      access_token: token,
+      group_id: groupMatch?.[1] || "",
+    });
+    if (data?.next_authorization_url) {
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+      window.location.assign(safeUrl(data.next_authorization_url));
+      return;
+    }
+    window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+    toast("VK пайваст шуд", `${data?.integration?.name || "VK Community"} ба Munis пайваст шуд.`);
+    await app.loadShellData();
+  } catch (error) {
+    window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+    toast("VK пайваст нашуд", errorMessage(error, "VK OAuth ноком шуд."), "error");
+  }
+}
+
 function openWhatsAppForm(app) {
   const formId = "whatsapp-connect-form";
   const modal = openModal({
@@ -536,6 +677,32 @@ function openWhatsAppForm(app) {
 }
 
 function openInstagramWizard(app) {
+  // Instagram OAuth is configured once on the server. Users should never
+  // have to copy App ID, App Secret, Verify Token, or an access token.
+  // Start the official Instagram authorization flow immediately.
+  (async () => {
+    try {
+      const data = await api.post("/api/integrations/instagram/connect/start/", {
+        name: app?.name || "Instagram",
+      });
+      const authorizationUrl = safeUrl(data?.authorization_url || "");
+      if (authorizationUrl === "#") {
+        throw new Error("Instagram OAuth URL was not returned by the server.");
+      }
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      toast(
+        "Instagram пайваст нашуд",
+        errorMessage(
+          error,
+          "Instagram-ро пайваст карда натавонистем. Танзимоти серверро санҷед.",
+        ),
+        "error",
+      );
+    }
+  })();
+  return;
+
   const formId = "instagram-connect-form";
   const modal = openModal({
     title: "Пайваст кардани Instagram",
@@ -718,6 +885,18 @@ function consumeInstagramCallback() {
 }
 
 function openFacebookWizard(app) {
+  (async () => {
+    try {
+      const data = await api.post("/api/integrations/facebook/connect/start/", { name: "Facebook" });
+      const authorizationUrl = safeUrl(data?.authorization_url || "");
+      if (authorizationUrl === "#") throw new Error("Facebook OAuth URL was not returned by the server.");
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      toast("Facebook пайваст нашуд", errorMessage(error, "Facebook OAuth дар сервер танзим нашудааст."), "error");
+    }
+  })();
+  return;
+
   const formId = "facebook-connect-form";
   const modal = openModal({
     title: "Пайваст кардани Facebook",
@@ -1011,6 +1190,11 @@ function bindPage(app, integrations) {
     if (!button || !page.contains(button)) return;
 
     const pageAction = button.dataset.pageAction;
+    if (pageAction === "demo-vk" || pageAction === "demo-instagram" || pageAction === "demo-facebook") {
+      const platform = pageAction.replace("demo-", "");
+      openDemoForm(app, platform);
+      return;
+    }
     if (pageAction === "connect-telegram") {
       openTelegramWizard(app);
       return;
@@ -1020,7 +1204,19 @@ function bindPage(app, integrations) {
       return;
     }
     if (pageAction === "connect-instagram") {
-      openInstagramWizard(app);
+      openDemoForm(app, "instagram");
+      return;
+    }
+    if (pageAction === "connect-facebook") {
+      openDemoForm(app, "facebook");
+      return;
+    }
+    if (pageAction === "connect-viber") {
+      openBotChannelForm(app, "viber");
+      return;
+    }
+    if (pageAction === "connect-vk") {
+      openVKOAuth(app);
       return;
     }
 
@@ -1057,6 +1253,8 @@ function renderLoadError(app, error) {
 
 export async function renderIntegrations(app) {
   consumeInstagramCallback();
+  consumeFacebookCallback();
+  await consumeVKOAuth(app);
   app.main.innerHTML = pageSkeleton();
   try {
     const data = await api.get("/api/integrations/?page_size=100&ordering=-created_at");

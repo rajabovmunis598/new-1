@@ -1,14 +1,15 @@
-import { api, results } from "../api.js?v=20260823-6";
+import { api, results } from "../api.js?v=20260824-4";
 import {
   avatar, debounce, emptyState, escapeHTML, formatDate, formatTime, icon,
   platformBadge, queryString, safeUrl, setButtonLoading, statusBadge, toast,
-} from "../ui.js?v=20260823-6";
+} from "../ui.js?v=20260824-4";
 
 const state = {
   page: 1,
   search: "",
   platform: "",
   status: "",
+  unread: false,
   selectedId: null,
   selectedConversation: null,
   conversations: [],
@@ -55,7 +56,7 @@ function conversationRows() {
     return emptyState({
       iconName: "messages",
       title: "Суҳбат ёфт нашуд",
-      text: state.search || state.platform || state.status
+      text: state.search || state.platform || state.status || state.unread
         ? "Филтрҳоро тағйир диҳед ва дубора ҷустуҷӯ кунед."
         : "Баъди омадани паём суҳбатҳо дар ин ҷо пайдо мешаванд.",
     });
@@ -95,11 +96,25 @@ function messageMarkup(message) {
   const aiButton = sender === "customer" && message.text
     ? `<button class="ai-reply-trigger" type="button" data-ai-reply="${message.id}" data-msg-text="${escapeHTML(message.text)}">${icon("sparkles")} AI</button>`
     : "";
+  const translation = message.text ? `<div class="message-translate" data-translation-tools><button type="button" data-translate="tg" data-text="${escapeHTML(message.text)}">Тоҷикӣ</button><button type="button" data-translate="ru" data-text="${escapeHTML(message.text)}">Русский</button><button type="button" data-translate="en" data-text="${escapeHTML(message.text)}">English</button><span data-translation-result></span></div>` : "";
   return `<article class="message ${sender}" data-message-id="${message.id}"><div class="message-bubble">
     ${mediaMarkup(message)}
     ${message.text ? `<p>${escapeHTML(message.text)}</p>` : (!message.media_url ? "<p>Паёми бе матн</p>" : "")}
     <div class="message-meta"><time>${escapeHTML(formatTime(message.external_created_at || message.created_at))}</time>${delivery ? `<span>· ${escapeHTML(delivery)}</span>` : ""}${sender !== "system" ? `<button class="btn btn-ghost btn-icon btn-sm" type="button" data-external-message="${message.id}" aria-label="Кушодан дар платформа">${icon("external")}</button>` : ""}</div>
-  </div>${aiButton}</article>`;
+  </div>${translation}${aiButton}</article>`;
+}
+
+async function translateMessage(button) {
+  const tools = button.closest("[data-translation-tools]");
+  const result = tools?.querySelector("[data-translation-result]");
+  if (!result) return;
+  result.textContent = "...";
+  try {
+    const data = await api.post("/api/ai/translate/", { text: button.dataset.text || "", language: button.dataset.translate });
+    result.textContent = data.translation || "";
+  } catch (error) {
+    result.textContent = error.message || "Translation unavailable";
+  }
 }
 
 function appendMessageToOpenThread(app, conversationId, message) {
@@ -142,8 +157,9 @@ function shellMarkup() {
         <div class="inbox-filters">
           <label class="search-field"><span class="sr-only">Ҷустуҷӯ</span>${icon("search")}<input class="field-input" id="conversation-search" type="search" value="${escapeHTML(state.search)}" placeholder="Ном, рақам ё паём..."></label>
           <div class="inbox-filter-row">
-            <select class="field-select" id="platform-filter" aria-label="Платформа"><option value="">Ҳамаи каналҳо</option><option value="telegram" ${state.platform === "telegram" ? "selected" : ""}>Telegram</option><option value="whatsapp" ${state.platform === "whatsapp" ? "selected" : ""}>WhatsApp</option><option value="instagram" ${state.platform === "instagram" ? "selected" : ""}>Instagram</option></select>
+            <select class="field-select" id="platform-filter" aria-label="Платформа"><option value="">Ҳамаи каналҳо</option><option value="telegram" ${state.platform === "telegram" ? "selected" : ""}>Telegram</option><option value="whatsapp" ${state.platform === "whatsapp" ? "selected" : ""}>WhatsApp</option><option value="instagram" ${state.platform === "instagram" ? "selected" : ""}>Instagram</option><option value="facebook" ${state.platform === "facebook" ? "selected" : ""}>Facebook</option><option value="viber" ${state.platform === "viber" ? "selected" : ""}>Viber</option><option value="vk" ${state.platform === "vk" ? "selected" : ""}>VK</option></select>
             <select class="field-select" id="status-filter" aria-label="Ҳолати суҳбат"><option value="">Ҳамаи ҳолатҳо</option><option value="open" ${state.status === "open" ? "selected" : ""}>Кушода</option><option value="closed" ${state.status === "closed" ? "selected" : ""}>Пӯшида</option><option value="archived" ${state.status === "archived" ? "selected" : ""}>Бойгонӣ</option></select>
+            <label class="filter-check"><input type="checkbox" id="unread-filter" ${state.unread ? "checked" : ""}> Танҳо нав</label>
           </div>
         </div>
         <div class="conversation-list" id="conversation-list"><div class="empty-state"><span class="loading-spinner" style="color:var(--primary)"></span></div></div>
@@ -161,6 +177,7 @@ async function loadConversationList(app, { selectFirst = false, silent = false }
     search: state.search,
     platform: state.platform,
     status: state.status,
+    unread: state.unread ? "true" : "",
     ordering: "-last_message_at",
   })}`);
   const newConversations = results(data);
@@ -342,6 +359,12 @@ function bindThreadEvents(app) {
       handleAiReply(panel, aiBtn);
       return;
     }
+    const translateBtn = event.target.closest("[data-translate]");
+    if (translateBtn) {
+      event.preventDefault();
+      void translateMessage(translateBtn);
+      return;
+    }
     const suggestion = event.target.closest(".ai-suggestion-btn:not(.other)");
     if (suggestion) {
       event.preventDefault();
@@ -487,6 +510,7 @@ export async function renderInbox(app) {
   }));
   app.main.querySelector("#platform-filter").addEventListener("change", async (event) => { state.platform = event.target.value; state.page = 1; await refreshInbox(); });
   app.main.querySelector("#status-filter").addEventListener("change", async (event) => { state.status = event.target.value; state.page = 1; await refreshInbox(); });
+  app.main.querySelector("#unread-filter").addEventListener("change", async (event) => { state.unread = event.target.checked; state.page = 1; await refreshInbox(); });
   app.main.querySelector("[data-refresh-conversations]").addEventListener("click", () => refreshInbox());
 
   try {

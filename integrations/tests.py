@@ -1026,3 +1026,72 @@ class IntegrationCredentialAPITests(APITestCase):
                 text="hello",
             ).exists()
         )
+
+    def test_whatsapp_interactive_message_without_timestamp_is_persisted(self):
+        _, integration = self.create_whatsapp_integration()
+        payload = {
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "metadata": {"phone_number_id": integration.external_account_id},
+                        "contacts": [{"profile": {"name": "Customer"}}],
+                        "messages": [{
+                            "id": "wamid-interactive-1",
+                            "from": "992900001100",
+                            "type": "interactive",
+                            "interactive": {
+                                "type": "button_reply",
+                                "button_reply": {"title": "Order now", "id": "order-now"},
+                            },
+                        }],
+                    }
+                }]
+            }]
+        }
+        body = json.dumps(payload, separators=(",", ":")).encode()
+        signature = "sha256=" + hmac.new(
+            b"app-secret-value", body, hashlib.sha256
+        ).hexdigest()
+        response = self.client.generic(
+            "POST",
+            f"/api/webhooks/whatsapp/{integration.pk}/",
+            body,
+            content_type="application/json",
+            HTTP_X_HUB_SIGNATURE_256=signature,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            Message.objects.filter(
+                conversation__integration=integration,
+                text="Order now",
+            ).exists()
+        )
+
+    def test_viber_message_webhook_is_persisted(self):
+        response = self.client.post(
+            "/api/integrations/viber/connect/",
+            {"name": "Owner Viber", "auth_token": "viber-auth-token-123456"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        integration = Integration.objects.get(pk=response.data["id"])
+        payload = {"event": "message", "timestamp": 1710000000000, "message_token": 77, "sender": {"id": "viber-user", "name": "Viber User"}, "message": {"type": "text", "text": "Hello from Viber"}}
+        body = json.dumps(payload, separators=(",", ":")).encode()
+        signature = hmac.new(b"viber-auth-token-123456", body, hashlib.sha256).hexdigest()
+        result = self.client.generic("POST", f"/api/webhooks/viber/{integration.pk}/", body, content_type="application/json", HTTP_X_VIBER_CONTENT_SIGNATURE=signature)
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(Message.objects.filter(conversation__integration=integration, text="Hello from Viber").exists())
+
+    def test_vk_confirmation_and_message_webhook_are_supported(self):
+        response = self.client.post(
+            "/api/integrations/vk/connect/",
+            {"name": "Owner VK", "group_id": "123456", "access_token": "vk-access-token-123456", "secret": "vk-secret", "confirmation": "vk-confirm", "api_version": "5.199"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        integration = Integration.objects.get(pk=response.data["id"])
+        confirmed = self.client.post(f"/api/webhooks/vk/{integration.pk}/", {"type": "confirmation"}, format="json")
+        self.assertEqual(confirmed.content, b"vk-confirm")
+        result = self.client.post(f"/api/webhooks/vk/{integration.pk}/", {"type": "message_new", "secret": "vk-secret", "object": {"id": 88, "from_id": 42, "peer_id": 42, "date": 1710000000, "text": "Hello from VK"}}, format="json")
+        self.assertEqual(result.content, b"ok")
+        self.assertTrue(Message.objects.filter(conversation__integration=integration, text="Hello from VK").exists())

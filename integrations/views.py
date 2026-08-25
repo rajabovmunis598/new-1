@@ -19,7 +19,7 @@ from django.utils.crypto import salted_hmac
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -44,10 +44,15 @@ from .serializers import (
     TelegramVerifySerializer,
     WhatsAppConnectSerializer,
     WhatsAppTestResponseSerializer,
+    ViberConnectSerializer,
+    VKConnectSerializer,
 )
 from .services import get_adapter
 from .services.facebook_messenger import FacebookGraphClient, FacebookAPIError
 from .services.instagram_api import InstagramAPIClient, InstagramAPIError
+from .services.viber import ViberIntegration
+from .services.vk import VKIntegration
+from .processing import persist_incoming
 
 
 INSTAGRAM_OAUTH_STATE_SALT = "integrations.instagram.oauth-state"
@@ -55,8 +60,58 @@ INSTAGRAM_OAUTH_BROWSER_SALT = "integrations.instagram.oauth-browser"
 
 FACEBOOK_OAUTH_STATE_SALT = "integrations.facebook.oauth-state"
 FACEBOOK_OAUTH_BROWSER_SALT = "integrations.facebook.oauth-browser"
+VK_OAUTH_STATE_SALT = "integrations.vk.oauth-state"
 
 logger = logging.getLogger(__name__)
+
+
+def _seed_demo_followups(integration, prefix, name):
+    """Add natural-language demo follow-ups without storing any external token."""
+    texts = (
+        "Мехоҳам шартҳои хизматрасониро фаҳмам.",
+        "Оё имрӯз фармоиш додан мумкин аст?",
+        "Нарх ва вақти иҷро чанд мешавад?",
+        "Ба ман варианти мувофиқро пешниҳод кунед.",
+        "Хуб, маълумот равшан шуд.",
+        "Лутфан рақами тамосро ҳам фиристед.",
+        "Ташаккур барои ҷавоби шумо.",
+    )
+    for offset, text in enumerate(texts, start=4):
+        persist_incoming(integration, {
+            "contact_id": f"demo-{prefix}-customer",
+            "chat_id": f"demo-{prefix}-chat",
+            "name": name,
+            "username": f"{prefix}_demo",
+            "message_id": f"demo-{prefix}-message-{offset}",
+            "text": text,
+            "timestamp": timezone.now(),
+        })
+
+
+def _vk_redirect_uri(request):
+    configured = str(getattr(settings, "VK_REDIRECT_URI", "")).strip()
+    return configured or request.build_absolute_uri("/integrations")
+
+
+def _vk_state_key(state):
+    return f"vk_oauth_state:{hashlib.sha256(state.encode()).hexdigest()}"
+
+
+def _new_vk_state(user_id, stage="user", group_id=""):
+    state = signing.dumps(
+        {"user_id": user_id, "stage": stage, "group_id": str(group_id or ""), "nonce": secrets.token_urlsafe(20)},
+        salt=VK_OAUTH_STATE_SALT,
+        compress=True,
+    )
+    cache.set(_vk_state_key(state), True, timeout=600)
+    return state
+
+
+def _consume_vk_state(state):
+    payload = signing.loads(state, salt=VK_OAUTH_STATE_SALT, max_age=600)
+    if not cache.delete(_vk_state_key(state)):
+        raise signing.BadSignature("Expired VK OAuth state")
+    return payload
 
 
 def _instagram_redirect_uri(request):
@@ -469,6 +524,11 @@ class InstagramOAuthCallbackView(APIView):
     )
     def get(self, request):
         raw_state = str(request.query_params.get("state") or "")
+        # The same Meta redirect URI is also used by the site's Instagram
+        # sign-in flow. Dispatch its one-time state to the auth callback.
+        from users.views import InstagramLoginCallbackView, _instagram_login_key
+        if raw_state and cache.get(_instagram_login_key(raw_state)):
+            return InstagramLoginCallbackView.as_view()(request)
         serializer = self.serializer_class(data=request.query_params)
         if not serializer.is_valid():
             return _instagram_result_redirect("error", raw_state)
@@ -601,14 +661,288 @@ class WhatsAppConnectView(APIView):
         )
         obj.set_credentials(data)
         obj.save()
-        obj.webhook_url = request.build_absolute_uri(
-            reverse("whatsapp-webhook", kwargs={"integration_id": obj.pk})
+        base_url = str(
+            getattr(settings, "WHATSAPP_WEBHOOK_BASE_URL", "")
+            or getattr(settings, "SITE_URL", "")
+        ).strip()
+        callback_path = reverse("whatsapp-webhook", kwargs={"integration_id": obj.pk})
+        obj.webhook_url = (
+            base_url.rstrip("/") + callback_path
+            if base_url
+            else request.build_absolute_uri(callback_path)
         )
         obj.save(update_fields=["webhook_url", "updated_at"])
         return Response(
             IntegrationSerializer(obj, context={"request": request}).data,
             status=201,
         )
+
+
+class ViberConnectView(APIView):
+    serializer_class = ViberConnectSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        obj = Integration(
+            user=request.user,
+            platform="viber",
+            name=data.pop("name"),
+            status="active",
+        )
+        obj.set_credentials(data)
+        obj.save()
+        base_url = str(
+            getattr(settings, "WHATSAPP_WEBHOOK_BASE_URL", "")
+            or getattr(settings, "SITE_URL", "")
+        ).strip()
+        callback_path = reverse("viber-webhook", kwargs={"integration_id": obj.pk})
+        obj.webhook_url = (
+            base_url.rstrip("/") + callback_path
+            if base_url
+            else request.build_absolute_uri(callback_path)
+        )
+        obj.save(update_fields=["webhook_url", "updated_at"])
+        try:
+            ViberIntegration(obj).set_webhook(obj.webhook_url)
+        except Exception as exc:
+            obj.last_error = f"Viber webhook was not registered: {str(exc)[:240]}"
+            obj.save(update_fields=["last_error", "updated_at"])
+        return Response(IntegrationSerializer(obj, context={"request": request}).data, status=201)
+
+
+class VKConnectView(APIView):
+    serializer_class = VKConnectSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        group_id = data.pop("group_id")
+        obj = Integration(
+            user=request.user,
+            platform="vk",
+            name=data.pop("name"),
+            status="active",
+            external_account_id=group_id,
+        )
+        obj.set_credentials(data)
+        obj.save()
+        base_url = str(
+            getattr(settings, "WHATSAPP_WEBHOOK_BASE_URL", "")
+            or getattr(settings, "SITE_URL", "")
+        ).strip()
+        callback_path = reverse("vk-webhook", kwargs={"integration_id": obj.pk})
+        obj.webhook_url = (
+            base_url.rstrip("/") + callback_path
+            if base_url
+            else request.build_absolute_uri(callback_path)
+        )
+        obj.save(update_fields=["webhook_url", "updated_at"])
+        return Response(IntegrationSerializer(obj, context={"request": request}).data, status=201)
+
+
+class VKOAuthStartView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        app_id = str(getattr(settings, "VK_APP_ID", "")).strip()
+        if not app_id:
+            raise ValidationError("VK_APP_ID is not configured on the server.")
+        state = _new_vk_state(request.user.pk)
+        params = {
+            "client_id": app_id,
+            "display": "page",
+            "redirect_uri": _vk_redirect_uri(request),
+            "scope": "groups,offline",
+            "response_type": "token",
+            "v": "5.199",
+            "state": state,
+        }
+        return Response({"authorization_url": "https://oauth.vk.com/authorize?" + urlencode(params)})
+
+
+class VKDemoConnectView(APIView):
+    """Create a clearly marked local VK connection for product demonstrations."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not getattr(settings, "DEMO_MODE", False):
+            raise ValidationError("Demo mode is disabled on this server.")
+        integration, _ = Integration.objects.get_or_create(
+            user=request.user,
+            platform="vk",
+            external_account_id="demo-vk-community",
+            defaults={"name": "VK Demo Community", "status": "active"},
+        )
+        integration.name = str(request.data.get("name") or "VK Demo Community")[:255]
+        integration.status = "active"
+        integration.set_credentials({"demo": True, "group_id": "demo-vk-community"})
+        integration.save(update_fields=["name", "status", "credentials", "updated_at"])
+        for index, text in enumerate((
+            "Салом! Ин паёми намунавӣ аз VK аст.",
+            "Мехоҳам дар бораи нарх ва хизматрасонӣ маълумот гирам.",
+            "Ташаккур, ҷавоби AI-ро ҳам санҷидан мумкин аст.",
+        ), start=1):
+            persist_incoming(integration, {
+                "contact_id": "demo-vk-customer",
+                "chat_id": "demo-vk-chat",
+                "name": "VK Demo Customer",
+                "username": "vk_demo_customer",
+                "message_id": f"demo-vk-message-{index}",
+                "text": text,
+                "timestamp": timezone.now(),
+            })
+        _seed_demo_followups(integration, "vk", "VK Demo Customer")
+        return Response({"demo": True, "integration": IntegrationSerializer(integration, context={"request": request}).data}, status=201)
+
+
+class InstagramDemoConnectView(APIView):
+    """Create a clearly marked local Instagram connection for demonstrations."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not getattr(settings, "DEMO_MODE", False):
+            raise ValidationError("Demo mode is disabled on this server.")
+        integration, _ = Integration.objects.get_or_create(
+            user=request.user,
+            platform="instagram",
+            external_account_id="demo-instagram-account",
+            defaults={"name": "Instagram Demo", "status": "active"},
+        )
+        integration.name = str(request.data.get("name") or "Instagram Demo")[:255]
+        integration.status = "active"
+        integration.set_credentials({"demo": True, "account_id": "demo-instagram-account"})
+        integration.save(update_fields=["name", "status", "credentials", "updated_at"])
+        for index, text in enumerate((
+            "Салом! Ин паёми намунавӣ аз Instagram аст.",
+            "Мехоҳам дар бораи маҳсулоти шумо маълумот гирам.",
+            "Ҷавоби AI-ро барои ин чат санҷед.",
+        ), start=1):
+            persist_incoming(integration, {
+                "contact_id": "demo-instagram-customer",
+                "chat_id": "demo-instagram-chat",
+                "name": "Мунис",
+                "username": "munis_demo",
+                "message_id": f"demo-instagram-message-{index}",
+                "text": text,
+                "timestamp": timezone.now(),
+            })
+        _seed_demo_followups(integration, "instagram", "Мунис")
+        return Response({"demo": True, "integration": IntegrationSerializer(integration, context={"request": request}).data}, status=201)
+
+
+class FacebookDemoConnectView(APIView):
+    """Create a clearly marked local Facebook connection for demonstrations."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not getattr(settings, "DEMO_MODE", False):
+            raise ValidationError("Demo mode is disabled on this server.")
+        integration, _ = Integration.objects.get_or_create(
+            user=request.user, platform="facebook",
+            external_account_id="demo-facebook-page",
+            defaults={"name": "Facebook Demo", "status": "active"},
+        )
+        integration.name = str(request.data.get("name") or "Facebook Demo")[:255]
+        integration.status = "active"
+        integration.set_credentials({"demo": True, "page_id": "demo-facebook-page"})
+        integration.save(update_fields=["name", "status", "credentials", "updated_at"])
+        for index, text in enumerate((
+            "Салом! Ин паёми намунавӣ аз Facebook аст.",
+            "Мехоҳам дар бораи хизматрасонӣ маълумот гирам.",
+            "Ҷавоби AI-ро барои намоиш санҷед.",
+        ), start=1):
+            persist_incoming(integration, {
+                "contact_id": "demo-facebook-customer", "chat_id": "demo-facebook-chat",
+                "name": "Мунис", "username": "munis_demo", "message_id": f"demo-facebook-message-{index}",
+                "text": text, "timestamp": timezone.now(),
+            })
+        _seed_demo_followups(integration, "facebook", "Мунис")
+        return Response({"demo": True, "integration": IntegrationSerializer(integration, context={"request": request}).data}, status=201)
+
+
+class VKOAuthCompleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        token = str(request.data.get("access_token") or "").strip()
+        state = str(request.data.get("state") or "").strip()
+        group_id = str(request.data.get("group_id") or "").strip()
+        if not token or not state:
+            raise ValidationError("VK OAuth response is incomplete.")
+        try:
+            payload = _consume_vk_state(state)
+            if int(payload.get("user_id")) != request.user.pk:
+                raise signing.BadSignature("VK OAuth user mismatch")
+            if payload.get("stage") == "user":
+                group = VKIntegration.admin_group(token)
+                selected_group_id = str(group.get("id") or "")
+                if not selected_group_id:
+                    raise ValidationError("No administrator VK community was found.")
+                next_state = _new_vk_state(request.user.pk, "community", selected_group_id)
+                params = {
+                    "client_id": str(getattr(settings, "VK_APP_ID", "")),
+                    "display": "page",
+                    "redirect_uri": _vk_redirect_uri(request),
+                    "scope": "messages",
+                    "response_type": "token",
+                    "v": "5.199",
+                    "group_ids": selected_group_id,
+                    "state": next_state,
+                }
+                return Response({"next_authorization_url": "https://oauth.vk.com/authorize?" + urlencode(params)})
+            selected_group_id = str(payload.get("group_id") or group_id)
+            if not selected_group_id or not selected_group_id.isdigit():
+                raise ValidationError("VK community was not identified.")
+            base_url = str(
+                getattr(settings, "WHATSAPP_WEBHOOK_BASE_URL", "")
+                or getattr(settings, "SITE_URL", "")
+            ).strip()
+            callback_path = reverse("vk-webhook", kwargs={"integration_id": 0})
+            name_result = VKIntegration.api_call("groups.getById", token, group_id=selected_group_id)
+            group = (name_result.get("groups") or name_result.get("items") or [{}])[0]
+            name = str(group.get("name") or f"VK Community {selected_group_id}")
+            secret = secrets.token_urlsafe(24)
+            with transaction.atomic():
+                integration = Integration.objects.filter(
+                    user=request.user, platform="vk", external_account_id=selected_group_id
+                ).first()
+                if integration is None:
+                    integration = Integration(
+                        user=request.user,
+                        platform="vk",
+                        external_account_id=selected_group_id,
+                    )
+                integration.name = name
+                integration.status = "active"
+                integration.set_credentials({
+                    "access_token": token,
+                    "group_id": selected_group_id,
+                    "secret": secret,
+                    "api_version": "5.199",
+                })
+                integration.save()
+                callback_path = reverse("vk-webhook", kwargs={"integration_id": integration.pk})
+                integration.webhook_url = (
+                    base_url.rstrip("/") + callback_path
+                    if base_url
+                    else request.build_absolute_uri(callback_path)
+                )
+                confirmation = VKIntegration.configure_callback(token, selected_group_id, integration.webhook_url, secret)
+                credentials = integration.get_credentials()
+                credentials["confirmation"] = confirmation
+                integration.set_credentials(credentials)
+                integration.last_error = ""
+                integration.last_sync_at = timezone.now()
+                integration.save(update_fields=["webhook_url", "last_error", "last_sync_at", "updated_at", "credentials"])
+            return Response({"connected": True, "integration": IntegrationSerializer(integration, context={"request": request}).data})
+        except (signing.BadSignature, KeyError, TypeError, ValueError, APIException) as exc:
+            raise ValidationError(str(exc) or "VK OAuth connection failed.") from exc
 
 
 class WhatsAppTestView(APIView):
@@ -683,6 +1017,9 @@ class WhatsAppWebhookView(APIView):
             request.headers.get("X-Hub-Signature-256"),
             secret,
         ):
+            Integration.objects.filter(pk=integration.pk).update(
+                last_error="WhatsApp webhook signature verification failed.",
+            )
             return Response({"detail": "Invalid signature"}, status=403)
         accepted = 0
         from .tasks import _process_whatsapp_event, process_whatsapp_event
@@ -718,7 +1055,144 @@ class WhatsAppWebhookView(APIView):
                                 process_whatsapp_event.delay(event.id)
                             except Exception:
                                 pass
+        if accepted:
+            Integration.objects.filter(pk=integration.pk).update(
+                last_sync_at=timezone.now(), last_error=""
+            )
         return Response({"accepted": accepted})
+
+
+class ViberWebhookView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get_integration(self, integration_id):
+        return get_object_or_404(
+            Integration, id=integration_id, platform="viber", status="active"
+        )
+
+    @extend_schema(request=OpenApiTypes.OBJECT, responses={200: OpenApiTypes.OBJECT})
+    def post(self, request, integration_id):
+        integration = self.get_integration(integration_id)
+        token = integration.get_credentials().get("auth_token", "")
+        if not ViberIntegration.valid_signature(
+            request.body, request.headers.get("X-Viber-Content-Signature"), token
+        ):
+            Integration.objects.filter(pk=integration.pk).update(
+                last_error="Viber webhook signature verification failed."
+            )
+            return Response({"detail": "Invalid signature"}, status=403)
+
+        payload = request.data if isinstance(request.data, dict) else {}
+        if payload.get("event") != "message":
+            return Response({"accepted": 0})
+        sender = payload.get("sender") or {}
+        message = payload.get("message") or {}
+        if not isinstance(sender, dict) or not isinstance(message, dict):
+            return Response({"accepted": 0})
+        sender_id = str(sender.get("id") or "")
+        event_id = str(payload.get("message_token") or "")
+        if not sender_id or not event_id:
+            return Response({"accepted": 0})
+        event, created = IntegrationEvent.objects.get_or_create(
+            integration=integration,
+            external_event_id=event_id,
+            defaults={"event_type": "message", "payload": payload},
+        )
+        if created:
+            message_type = str(message.get("type") or "other")
+            content = message.get("text") or message.get("caption") or ""
+            timestamp = payload.get("timestamp")
+            try:
+                timestamp = timezone.datetime.fromtimestamp(
+                    int(timestamp) / 1000, tz=timezone.get_current_timezone()
+                )
+            except (TypeError, ValueError, OverflowError, OSError):
+                timestamp = timezone.now()
+            get_adapter(integration).process_event({
+                "id": event_id,
+                "message_id": event_id,
+                "contact_id": sender_id,
+                "chat_id": sender_id,
+                "from": sender_id,
+                "phone": "",
+                "name": str(sender.get("name") or ""),
+                "type": message_type,
+                "text": str(content),
+                "timestamp": timestamp,
+                "sender_type": "customer",
+            })
+            IntegrationEvent.objects.filter(pk=event.pk).update(
+                status="processed", processed_at=timezone.now(), error_message=""
+            )
+            Integration.objects.filter(pk=integration.pk).update(
+                last_sync_at=timezone.now(), last_error=""
+            )
+        return Response({"accepted": 1 if created else 0})
+
+
+class VKWebhookView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get_integration(self, integration_id):
+        return get_object_or_404(
+            Integration, id=integration_id, platform="vk", status="active"
+        )
+
+    @extend_schema(request=OpenApiTypes.OBJECT, responses={200: OpenApiTypes.OBJECT})
+    def post(self, request, integration_id):
+        integration = self.get_integration(integration_id)
+        payload = request.data if isinstance(request.data, dict) else {}
+        credentials = integration.get_credentials()
+        if payload.get("type") == "confirmation":
+            return HttpResponse(credentials.get("confirmation", ""), content_type="text/plain")
+        supplied_secret = str(payload.get("secret") or request.query_params.get("secret") or "")
+        if not supplied_secret or not secrets.compare_digest(
+            supplied_secret, str(credentials.get("secret") or "")
+        ):
+            Integration.objects.filter(pk=integration.pk).update(
+                last_error="VK webhook secret verification failed."
+            )
+            return Response({"detail": "Invalid secret"}, status=403)
+        if payload.get("type") != "message_new":
+            return HttpResponse("ok", content_type="text/plain")
+        message = payload.get("object") or {}
+        if not isinstance(message, dict):
+            return HttpResponse("ok", content_type="text/plain")
+        event_id = str(message.get("conversation_message_id") or message.get("id") or "")
+        sender_id = str(message.get("from_id") or "")
+        if not event_id or not sender_id:
+            return HttpResponse("ok", content_type="text/plain")
+        event, created = IntegrationEvent.objects.get_or_create(
+            integration=integration,
+            external_event_id=event_id,
+            defaults={"event_type": "message", "payload": payload},
+        )
+        if created:
+            timestamp = timezone.datetime.fromtimestamp(
+                int(message.get("date") or timezone.now().timestamp()),
+                tz=timezone.get_current_timezone(),
+            )
+            get_adapter(integration).process_event({
+                "id": event_id,
+                "message_id": event_id,
+                "contact_id": sender_id,
+                "chat_id": str(message.get("peer_id") or sender_id),
+                "from": sender_id,
+                "name": "VK user " + sender_id,
+                "type": "text",
+                "text": str(message.get("text") or ""),
+                "timestamp": timestamp,
+                "sender_type": "customer",
+            })
+            IntegrationEvent.objects.filter(pk=event.pk).update(
+                status="processed", processed_at=timezone.now(), error_message=""
+            )
+            Integration.objects.filter(pk=integration.pk).update(
+                last_sync_at=timezone.now(), last_error=""
+            )
+        return HttpResponse("ok", content_type="text/plain")
 
 
 class InstagramWebhookView(APIView):

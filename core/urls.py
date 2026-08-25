@@ -28,9 +28,11 @@ from integrations.views import (
     InstagramWebhookView,
     IntegrationViewSet,
     WhatsAppWebhookView,
+    ViberWebhookView,
+    VKWebhookView,
 )
 from messages.views import SendMessageView
-from core.views import DashboardStatisticsView, GlobalSearchView, AISuggestionsView
+from core.views import DashboardStatisticsView, GlobalSearchView, AISuggestionsView, AITranslateView
 from frontend.views import FrontendView
 
 integration_list = IntegrationViewSet.as_view({'get':'list'})
@@ -51,6 +53,7 @@ urlpatterns = [
     path('api/dashboard/statistics/', DashboardStatisticsView.as_view()),
     path('api/search/', GlobalSearchView.as_view(), name='global-search'),
     path('api/ai/suggestions/', AISuggestionsView.as_view(), name='ai-suggestions'),
+    path('api/ai/translate/', AITranslateView.as_view(), name='ai-translate'),
     path(
         'api/webhooks/whatsapp/<int:integration_id>/',
         WhatsAppWebhookView.as_view(),
@@ -65,6 +68,16 @@ urlpatterns = [
         'api/webhooks/facebook/',
         FacebookWebhookView.as_view(),
         name='facebook-webhook',
+    ),
+    path(
+        'api/webhooks/viber/<int:integration_id>/',
+        ViberWebhookView.as_view(),
+        name='viber-webhook',
+    ),
+    path(
+        'api/webhooks/vk/<int:integration_id>/',
+        VKWebhookView.as_view(),
+        name='vk-webhook',
     ),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path(
